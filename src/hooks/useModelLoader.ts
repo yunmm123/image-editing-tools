@@ -18,8 +18,8 @@ function getWorker(): Worker {
 /** 检测当前可用的推理后端 */
 export function detectBackend(): InferenceBackend {
   if (typeof navigator !== 'undefined') {
-    // @ts-expect-error gpu 类型在某些环境不存在
-    if (navigator.gpu) return 'webgpu';
+    // navigator.gpu 类型在某些环境不存在，用类型断言绕过
+    if ((navigator as Navigator & { gpu?: unknown }).gpu) return 'webgpu';
   }
   // transformers.js v4 在没有 WebGPU 时使用 WASM（CPU）
   return 'wasm';

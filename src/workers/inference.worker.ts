@@ -29,8 +29,12 @@ const modnetCache = new Map<string, { model: unknown; processor: unknown }>();
 /** 推理后端检测：优先 WebGPU，不可用则回退 WASM */
 function detectBackend(): 'webgpu' | 'wasm' {
   try {
-    // @ts-expect-error navigator.gpu 在旧 TS 类型上不存在
-    if (typeof navigator !== 'undefined' && navigator.gpu) return 'webgpu';
+    if (
+      typeof navigator !== 'undefined' &&
+      (navigator as Navigator & { gpu?: unknown }).gpu
+    ) {
+      return 'webgpu';
+    }
   } catch {
     /* noop */
   }

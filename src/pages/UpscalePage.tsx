@@ -1,15 +1,20 @@
 import { useState, useCallback, useMemo } from 'react';
-import { ZoomIn, RotateCcw, Loader2, ImageIcon } from 'lucide-react';
+import { ZoomIn, RotateCcw, Loader2, ImageIcon, Sparkles, Zap } from 'lucide-react';
 import ImageUploader from '../components/ImageUploader';
 import ImageCompare from '../components/ImageCompare';
+import ProgressBar from '../components/ProgressBar';
 import DownloadButton from '../components/DownloadButton';
 import { useImageProcessor } from '../hooks/useImageProcessor';
 import { superResolve } from '../services/superResolution';
 import type { EnhanceLevel } from '../services/superResolution';
+import { aiSuperResolve } from '../services/aiSuperResolution';
 import { formatBytes } from '../utils/format';
 import { buildOutputFilename } from '../utils/image';
 
-/** 增强强度选项 */
+/** 引擎类型 */
+type Engine = 'ai' | 'canvas';
+
+/** 增强强度选项（Canvas 模式） */
 const ENHANCE_OPTIONS: Array<{ value: EnhanceLevel; label: string; desc: string }> = [
   { value: 'light', label: '轻', desc: '清晰图片微调' },
   { value: 'medium', label: '中', desc: '普通图片（默认）' },
@@ -17,7 +22,7 @@ const ENHANCE_OPTIONS: Array<{ value: EnhanceLevel; label: string; desc: string 
 ];
 
 /**
- * 图片放大页：基于 Canvas 渐进式放大 + 多轮锐化 + 局部对比度增强
+ * 图片放大页：支持 AI 超分（ESRGAN）和 Canvas 快速放大两种引擎
  */
 export default function UpscalePage() {
   const { loadAndPrepare, wasScaled } = useImageProcessor();
@@ -28,8 +33,10 @@ export default function UpscalePage() {
   const [resultBlob, setResultBlob] = useState<Blob | null>(null);
   const [resultSize, setResultSize] = useState<{ width: number; height: number } | null>(null);
   const [scale, setScale] = useState<2 | 4>(4);
+  const [engine, setEngine] = useState<Engine>('ai');
   const [enhance, setEnhance] = useState<EnhanceLevel>('medium');
   const [processing, setProcessing] = useState(false);
+  const [progress, setProgress] = useState<number | null>(null);
   const [stage, setStage] = useState<string>('');
 
   const handleFiles = useCallback(
@@ -43,6 +50,7 @@ export default function UpscalePage() {
       setResultUrl(null);
       setResultBlob(null);
       setResultSize(null);
+      setProgress(null);
       setStage('');
       await loadAndPrepare(f);
     },
@@ -53,14 +61,16 @@ export default function UpscalePage() {
     if (!file) return;
     setProcessing(true);
     setStage('准备中');
+    setProgress(0);
     try {
       const { imageData } = await loadAndPrepare(file);
-      const result = await superResolve({
-        imageData,
-        scale,
-        enhance,
-        onProgress: (info) => setStage(info.stage),
-      });
+      const onProgress = (info: { progress: number; stage: string }) => {
+        setStage(info.stage);
+        setProgress(info.progress);
+      };
+      const result = engine === 'ai'
+        ? await aiSuperResolve({ imageData, scale, onProgress })
+        : await superResolve({ imageData, scale, enhance, onProgress });
       setResultUrl(result.url);
       setResultBlob(result.blob);
       setResultSize({ width: result.width, height: result.height });
@@ -70,7 +80,7 @@ export default function UpscalePage() {
     } finally {
       setProcessing(false);
     }
-  }, [file, loadAndPrepare, scale, enhance]);
+  }, [file, loadAndPrepare, scale, engine, enhance]);
 
   const handleReset = () => {
     if (previewUrl) URL.revokeObjectURL(previewUrl);
@@ -80,6 +90,7 @@ export default function UpscalePage() {
     setResultUrl(null);
     setResultBlob(null);
     setResultSize(null);
+    setProgress(null);
     setStage('');
   };
 
@@ -98,7 +109,7 @@ export default function UpscalePage() {
           <div>
             <h1 className="text-2xl font-bold text-slate-900 dark:text-white sm:text-3xl">图片放大</h1>
             <p className="text-sm text-slate-500 dark:text-slate-400">
-              渐进式双三次插值放大 + Unsharp Mask 锐化，2x / 4x 提升清晰度
+              AI 超分（ESRGAN，脑补细节）或 Canvas 快速放大（多轮锐化）
             </p>
           </div>
         </div>
@@ -124,6 +135,48 @@ export default function UpscalePage() {
                 </p>
               )}
 
+              {/* 引擎选择 */}
+              <div>
+                <p className="mb-2 text-sm font-medium text-slate-700 dark:text-slate-200">放大引擎</p>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setEngine('ai')}
+                    className={`flex items-center gap-2 rounded-lg border px-3 py-2.5 text-left transition-colors ${
+                      engine === 'ai'
+                        ? 'border-brand-600 bg-brand-50 text-brand-700 dark:bg-brand-900/30 dark:text-brand-300'
+                        : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300'
+                    }`}
+                  >
+                    <Sparkles size={18} className="shrink-0" />
+                    <div className="min-w-0">
+                      <div className="text-sm font-medium">AI 超分</div>
+                      <div className="text-xs opacity-70">ESRGAN，质量高，慢</div>
+                    </div>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEngine('canvas')}
+                    className={`flex items-center gap-2 rounded-lg border px-3 py-2.5 text-left transition-colors ${
+                      engine === 'canvas'
+                        ? 'border-brand-600 bg-brand-50 text-brand-700 dark:bg-brand-900/30 dark:text-brand-300'
+                        : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300'
+                    }`}
+                  >
+                    <Zap size={18} className="shrink-0" />
+                    <div className="min-w-0">
+                      <div className="text-sm font-medium">Canvas 快速</div>
+                      <div className="text-xs opacity-70">多轮锐化，秒级</div>
+                    </div>
+                  </button>
+                </div>
+                {engine === 'ai' && (
+                  <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+                    首次使用需下载 ~30MB 模型（浏览器缓存后秒开），适合模糊照片修复
+                  </p>
+                )}
+              </div>
+
               {/* 倍率选择 */}
               <div>
                 <p className="mb-2 text-sm font-medium text-slate-700 dark:text-slate-200">放大倍率</p>
@@ -145,32 +198,34 @@ export default function UpscalePage() {
                 </div>
               </div>
 
-              {/* 增强强度选择 */}
-              <div>
-                <p className="mb-2 text-sm font-medium text-slate-700 dark:text-slate-200">
-                  增强强度
-                  <span className="ml-2 text-xs font-normal text-slate-400">
-                    模糊照片建议选「强」
-                  </span>
-                </p>
-                <div className="grid grid-cols-3 gap-2">
-                  {ENHANCE_OPTIONS.map((opt) => (
-                    <button
-                      key={opt.value}
-                      type="button"
-                      onClick={() => setEnhance(opt.value)}
-                      className={`rounded-lg border px-3 py-2 text-center transition-colors ${
-                        enhance === opt.value
-                          ? 'border-brand-600 bg-brand-50 text-brand-700 dark:bg-brand-900/30 dark:text-brand-300'
-                          : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300'
-                      }`}
-                    >
-                      <div className="text-sm font-medium">{opt.label}</div>
-                      <div className="mt-0.5 text-xs opacity-70">{opt.desc}</div>
-                    </button>
-                  ))}
+              {/* 增强强度选择（仅 Canvas 模式） */}
+              {engine === 'canvas' && (
+                <div>
+                  <p className="mb-2 text-sm font-medium text-slate-700 dark:text-slate-200">
+                    增强强度
+                    <span className="ml-2 text-xs font-normal text-slate-400">
+                      模糊照片建议选「强」
+                    </span>
+                  </p>
+                  <div className="grid grid-cols-3 gap-2">
+                    {ENHANCE_OPTIONS.map((opt) => (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        onClick={() => setEnhance(opt.value)}
+                        className={`rounded-lg border px-3 py-2 text-center transition-colors ${
+                          enhance === opt.value
+                            ? 'border-brand-600 bg-brand-50 text-brand-700 dark:bg-brand-900/30 dark:text-brand-300'
+                            : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300'
+                        }`}
+                      >
+                        <div className="text-sm font-medium">{opt.label}</div>
+                        <div className="mt-0.5 text-xs opacity-70">{opt.desc}</div>
+                      </button>
+                    ))}
+                  </div>
                 </div>
-              </div>
+              )}
 
               <div className="flex gap-2">
                 <button
@@ -188,8 +243,11 @@ export default function UpscalePage() {
                 </button>
               </div>
 
-              {processing && stage && (
-                <p className="text-xs text-slate-500 dark:text-slate-400">{stage}...</p>
+              {processing && (
+                <ProgressBar
+                  progress={progress !== null ? { progress, stage } : undefined}
+                  label={stage}
+                />
               )}
             </div>
           )}
