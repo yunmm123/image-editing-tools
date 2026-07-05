@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <title>PicBetter · AI 图片处理工具</title>
+    <script>
+      // GitHub Pages SPA 路由回退：把路径转换为带 hash 的形式，再跳回 index
+      // 例如 /image-editing-tools/remove-bg -> /image-editing-tools/#/remove-bg
+      var pathSegmentsToKeep = 1; // /image-editing-tools/
+      var l = window.location;
+      if (l.pathname.split('/').length > pathSegmentsToKeep + 1) {
+        var parts = l.pathname.split('/').slice(pathSegmentsToKeep + 1);
+        var target = l.protocol + '//' + l.hostname + ':' + l.port + l.pathname.split('/').slice(0, pathSegmentsToKeep + 1).join('/') + '/#' + parts.join('/') + l.search + l.hash;
+        l.replace(target);
+      }
+    </script>
+  </head>
+  <body>
+    <p>正在跳转…</p>
+  </body>
+</html>
