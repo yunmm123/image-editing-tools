@@ -5,11 +5,19 @@ import ImageCompare from '../components/ImageCompare';
 import DownloadButton from '../components/DownloadButton';
 import { useImageProcessor } from '../hooks/useImageProcessor';
 import { superResolve } from '../services/superResolution';
+import type { EnhanceLevel } from '../services/superResolution';
 import { formatBytes } from '../utils/format';
 import { buildOutputFilename } from '../utils/image';
 
+/** 增强强度选项 */
+const ENHANCE_OPTIONS: Array<{ value: EnhanceLevel; label: string; desc: string }> = [
+  { value: 'light', label: '轻', desc: '清晰图片微调' },
+  { value: 'medium', label: '中', desc: '普通图片（默认）' },
+  { value: 'strong', label: '强', desc: '模糊照片强力增强' },
+];
+
 /**
- * 图片放大页：基于 Canvas 渐进式放大 + Unsharp Mask 锐化
+ * 图片放大页：基于 Canvas 渐进式放大 + 多轮锐化 + 局部对比度增强
  */
 export default function UpscalePage() {
   const { loadAndPrepare, wasScaled } = useImageProcessor();
@@ -20,6 +28,7 @@ export default function UpscalePage() {
   const [resultBlob, setResultBlob] = useState<Blob | null>(null);
   const [resultSize, setResultSize] = useState<{ width: number; height: number } | null>(null);
   const [scale, setScale] = useState<2 | 4>(4);
+  const [enhance, setEnhance] = useState<EnhanceLevel>('medium');
   const [processing, setProcessing] = useState(false);
   const [stage, setStage] = useState<string>('');
 
@@ -49,6 +58,7 @@ export default function UpscalePage() {
       const result = await superResolve({
         imageData,
         scale,
+        enhance,
         onProgress: (info) => setStage(info.stage),
       });
       setResultUrl(result.url);
@@ -60,7 +70,7 @@ export default function UpscalePage() {
     } finally {
       setProcessing(false);
     }
-  }, [file, loadAndPrepare, scale]);
+  }, [file, loadAndPrepare, scale, enhance]);
 
   const handleReset = () => {
     if (previewUrl) URL.revokeObjectURL(previewUrl);
@@ -130,6 +140,33 @@ export default function UpscalePage() {
                       }`}
                     >
                       {s}x 放大
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* 增强强度选择 */}
+              <div>
+                <p className="mb-2 text-sm font-medium text-slate-700 dark:text-slate-200">
+                  增强强度
+                  <span className="ml-2 text-xs font-normal text-slate-400">
+                    模糊照片建议选「强」
+                  </span>
+                </p>
+                <div className="grid grid-cols-3 gap-2">
+                  {ENHANCE_OPTIONS.map((opt) => (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      onClick={() => setEnhance(opt.value)}
+                      className={`rounded-lg border px-3 py-2 text-center transition-colors ${
+                        enhance === opt.value
+                          ? 'border-brand-600 bg-brand-50 text-brand-700 dark:bg-brand-900/30 dark:text-brand-300'
+                          : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300'
+                      }`}
+                    >
+                      <div className="text-sm font-medium">{opt.label}</div>
+                      <div className="mt-0.5 text-xs opacity-70">{opt.desc}</div>
                     </button>
                   ))}
                 </div>
