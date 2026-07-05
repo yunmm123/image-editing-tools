@@ -32,7 +32,7 @@ interface UseModelLoaderResult {
   error: string | null;
   /** 调用 worker 执行一次推理 */
   runInference: <T = unknown>(
-    type: WorkerRequest['type'],
+    type: 'remove-bg',
     payload: unknown,
     onProgress?: (info: ProgressInfo) => void
   ) => Promise<T>;
@@ -51,7 +51,7 @@ export function useModelLoader(): UseModelLoaderResult {
 
   const runInference = useCallback(
     async <T = unknown,>(
-      type: WorkerRequest['type'],
+      type: 'remove-bg',
       payload: unknown,
       onProgress?: (info: ProgressInfo) => void
     ): Promise<T> => {

@@ -1,21 +1,18 @@
 import { useState, useCallback, useMemo } from 'react';
-import { ZoomIn, RotateCcw, Loader2, ImageIcon, AlertTriangle } from 'lucide-react';
+import { ZoomIn, RotateCcw, Loader2, ImageIcon } from 'lucide-react';
 import ImageUploader from '../components/ImageUploader';
 import ImageCompare from '../components/ImageCompare';
-import ProgressBar from '../components/ProgressBar';
 import DownloadButton from '../components/DownloadButton';
-import { useModelLoader } from '../hooks/useModelLoader';
 import { useImageProcessor } from '../hooks/useImageProcessor';
 import { superResolve } from '../services/superResolution';
 import { formatBytes } from '../utils/format';
 import { buildOutputFilename } from '../utils/image';
 
 /**
- * AI 图片无损放大页
+ * 图片放大页：基于 Canvas 渐进式放大 + Unsharp Mask 锐化
  */
 export default function UpscalePage() {
   const { loadAndPrepare, wasScaled } = useImageProcessor();
-  const { runInference, progress, error, status, backend, reset: resetModel } = useModelLoader();
 
   const [file, setFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -23,8 +20,8 @@ export default function UpscalePage() {
   const [resultBlob, setResultBlob] = useState<Blob | null>(null);
   const [resultSize, setResultSize] = useState<{ width: number; height: number } | null>(null);
   const [scale, setScale] = useState<2 | 4>(4);
-
-  const isProcessing = status === 'loading';
+  const [processing, setProcessing] = useState(false);
+  const [stage, setStage] = useState<string>('');
 
   const handleFiles = useCallback(
     async (files: File[]) => {
@@ -37,24 +34,33 @@ export default function UpscalePage() {
       setResultUrl(null);
       setResultBlob(null);
       setResultSize(null);
-      resetModel();
+      setStage('');
       await loadAndPrepare(f);
     },
-    [loadAndPrepare, previewUrl, resultUrl, resetModel]
+    [loadAndPrepare, previewUrl, resultUrl]
   );
 
   const handleProcess = useCallback(async () => {
     if (!file) return;
+    setProcessing(true);
+    setStage('准备中');
     try {
       const { imageData } = await loadAndPrepare(file);
-      const result = await superResolve({ imageData, scale, runInference });
+      const result = await superResolve({
+        imageData,
+        scale,
+        onProgress: (info) => setStage(info.stage),
+      });
       setResultUrl(result.url);
       setResultBlob(result.blob);
       setResultSize({ width: result.width, height: result.height });
     } catch (err) {
       console.error(err);
+      setStage('处理失败：' + (err instanceof Error ? err.message : String(err)));
+    } finally {
+      setProcessing(false);
     }
-  }, [file, loadAndPrepare, runInference, scale]);
+  }, [file, loadAndPrepare, scale]);
 
   const handleReset = () => {
     if (previewUrl) URL.revokeObjectURL(previewUrl);
@@ -64,7 +70,7 @@ export default function UpscalePage() {
     setResultUrl(null);
     setResultBlob(null);
     setResultSize(null);
-    resetModel();
+    setStage('');
   };
 
   const fileName = useMemo(
@@ -80,14 +86,11 @@ export default function UpscalePage() {
             <ZoomIn size={22} />
           </div>
           <div>
-            <h1 className="text-2xl font-bold text-slate-900 dark:text-white sm:text-3xl">AI 无损放大</h1>
+            <h1 className="text-2xl font-bold text-slate-900 dark:text-white sm:text-3xl">图片放大</h1>
             <p className="text-sm text-slate-500 dark:text-slate-400">
-              基于 swin2SR 模型超分辨率，2x / 4x 提升图片清晰度
+              渐进式双三次插值放大 + Unsharp Mask 锐化，2x / 4x 提升清晰度
             </p>
           </div>
-          <span className="ml-auto rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600 dark:bg-slate-800 dark:text-slate-300">
-            后端：{backend.toUpperCase()}
-          </span>
         </div>
       </div>
 
@@ -110,9 +113,6 @@ export default function UpscalePage() {
                   图片过大已自动缩放，可能影响放大效果
                 </p>
               )}
-              <p className="rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-500 dark:bg-slate-800/50 dark:text-slate-400">
-                为防止浏览器整数溢出，过大的图片会自动等比缩小后再放大。建议上传 1024px 以内的小图获得最佳效果。
-              </p>
 
               {/* 倍率选择 */}
               <div>
@@ -139,28 +139,20 @@ export default function UpscalePage() {
                 <button
                   type="button"
                   onClick={handleProcess}
-                  disabled={isProcessing}
+                  disabled={processing}
                   className="btn-primary flex-1"
                 >
-                  {isProcessing ? <Loader2 size={16} className="animate-spin" /> : <ZoomIn size={16} />}
-                  {isProcessing ? '放大中...' : '开始放大'}
+                  {processing ? <Loader2 size={16} className="animate-spin" /> : <ZoomIn size={16} />}
+                  {processing ? '放大中...' : '开始放大'}
                 </button>
                 <button type="button" onClick={handleReset} className="btn-secondary">
                   <RotateCcw size={16} />
                   重新上传
                 </button>
               </div>
-            </div>
-          )}
 
-          {(isProcessing || error) && (
-            <div className="mt-4">
-              {isProcessing && <ProgressBar progress={progress ?? undefined} label={progress?.stage} />}
-              {error && (
-                <div className="flex items-start gap-2 rounded-lg bg-rose-50 p-3 text-sm text-rose-700 dark:bg-rose-900/30 dark:text-rose-300">
-                  <AlertTriangle size={16} className="mt-0.5 shrink-0" />
-                  <span>模型加载失败，请刷新重试。原因：{error}</span>
-                </div>
+              {processing && stage && (
+                <p className="text-xs text-slate-500 dark:text-slate-400">{stage}...</p>
               )}
             </div>
           )}

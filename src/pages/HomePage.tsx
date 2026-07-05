@@ -24,11 +24,10 @@ const TOOLS = [
   },
   {
     to: '/upscale',
-    title: 'AI 无损放大',
-    description: 'AI 超分辨率放大，让模糊小图变高清大图',
+    title: '图片放大',
+    description: '渐进式双三次插值 + 锐化增强，2x / 4x 放大图片',
     icon: ZoomIn,
-    badge: 'AI',
-    accent: 'brand' as const,
+    accent: 'accent' as const,
   },
   {
     to: '/watermark',

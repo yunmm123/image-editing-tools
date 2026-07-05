@@ -8,7 +8,7 @@ interface HeaderProps {
 
 const NAV_ITEMS = [
   { to: '/remove-bg', label: 'AI 抠图' },
-  { to: '/upscale', label: '无损放大' },
+  { to: '/upscale', label: '图片放大' },
   { to: '/watermark', label: '图片水印' },
   { to: '/compress', label: '图片压缩' },
   { to: '/convert', label: '格式转换' },

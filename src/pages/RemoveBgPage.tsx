@@ -179,7 +179,7 @@ export default function RemoveBgPage() {
       <PageHeader
         icon={Scissors}
         title="AI 智能抠图"
-        description="基于 RMBG-1.4 模型，自动识别主体并移除背景"
+        description="基于 MODNet 模型，自动识别主体并移除背景"
         backend={backend.toUpperCase()}
       />
 

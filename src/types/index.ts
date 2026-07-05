@@ -26,7 +26,7 @@ export interface ProgressInfo {
 /** Web Worker 推理请求消息 */
 export interface WorkerRequest {
   id: string;
-  type: 'remove-bg' | 'upscale';
+  type: 'remove-bg';
   payload: unknown;
 }
 

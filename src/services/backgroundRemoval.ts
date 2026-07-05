@@ -5,7 +5,7 @@ import type { ProgressInfo } from '../types';
 
 /** runInference 函数类型（来自 useModelLoader hook） */
 type RunInference = <T = unknown>(
-  type: 'remove-bg' | 'upscale',
+  type: 'remove-bg',
   payload: unknown,
   onProgress?: (info: ProgressInfo) => void
 ) => Promise<T>;
