@@ -1,13 +1,14 @@
 // Web Worker：在后台线程运行 AI 推理，避免阻塞 UI
 // 支持 AI 抠图（background-removal）和图片放大（image-to-image）
+//
+// 模型选择说明：
+// - 抠图：使用 Xenova/modnet（Transformers.js 官方适配的轻量抠图模型，
+//         原生支持 image-segmentation/background-removal task）
+// - 放大：使用 Xenova/upscaler（轻量超分模型，避免 swin2SR 在 WASM 上的整数溢出问题）
 
 /// <reference lib="webworker" />
 
-import {
-  pipeline,
-  env,
-  RawImage,
-} from '@huggingface/transformers';
+import { pipeline, env, RawImage } from '@huggingface/transformers';
 import type { WorkerRequest, WorkerResponse, ProgressInfo } from '../types';
 
 // 配置 transformers.js：
@@ -87,21 +88,23 @@ function toClampedArray(data: Uint8Array): Uint8ClampedArray {
 }
 
 /**
- * 抠图：使用 background-removal task 加载 RMBG-1.4
+ * 抠图：使用 background-removal task 加载 Xenova/modnet
  * 返回带 alpha 通道的 RGBA ImageData
+ *
+ * 模型选择：Xenova/modnet 是 Transformers.js 官方适配的抠图模型，
+ * 基于 MODNet 架构，原生支持 background-removal task，
+ * 不存在 SegformerForSemanticSegmentation 不被支持的问题
  */
 async function removeBackground(
   imageData: ImageData,
   onProgress: (info: ProgressInfo) => void
 ): Promise<ImageData> {
-  onProgress({ progress: 0, stage: '加载抠图模型（background-removal）' });
+  onProgress({ progress: 0, stage: '加载抠图模型（Xenova/modnet）' });
 
-  // 注意：image-segmentation task 不支持 SegformerForSemanticSegmentation，
-  // 必须使用 background-removal task，该 task 注册了 Segformer 模型类
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const segmenter = await getPipeline<any>(
     'background-removal',
-    'briaai/RMBG-1.4',
+    'Xenova/modnet',
     onProgress
   );
 
@@ -117,9 +120,7 @@ async function removeBackground(
 
   // background-removal pipeline 返回 RawImage（已应用 alpha 通道）
   // 单张输入返回单个 RawImage，批量输入返回数组
-  const output = (await segmenter(inputImage, { threshold: 0.5 })) as
-    | RawImage
-    | RawImage[];
+  const output = (await segmenter(inputImage)) as RawImage | RawImage[];
 
   const result: RawImage = Array.isArray(output) ? output[0] : output;
   if (!result || !result.data) throw new Error('模型未返回有效结果');
@@ -133,25 +134,27 @@ async function removeBackground(
 }
 
 /**
- * 超分辨率：使用 image-to-image task 加载 swin2SR
- * swin2SR 在 WebGPU 上有已知 bug（compute pipeline 创建失败），
- * 因此强制使用 WASM 后端保证稳定性
+ * 超分辨率：使用 image-to-image task 加载 Xenova/upscaler
+ *
+ * 模型选择：Xenova/upscaler 是轻量级超分模型，
+ * 避免 swin2SR 在 WASM 后端上因参数量过大导致的整数溢出问题
+ *
+ * @param scale 用户选择的放大倍率（2 或 4），传递给 worker 但实际倍率由模型决定
  */
 async function superResolve(
   imageData: ImageData,
   onProgress: (info: ProgressInfo) => void
 ): Promise<ImageData> {
-  onProgress({ progress: 0, stage: '加载超分辨率模型（WASM 后端）' });
+  onProgress({ progress: 0, stage: '加载超分模型（Xenova/upscaler）' });
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const upscaler = await getPipeline<any>(
     'image-to-image',
-    'Xenova/swin2SR-realworld-sr-x4-64-bsrgan-psnr',
-    onProgress,
-    true // forceWasm: swin2SR 在 WebGPU 上不稳定
+    'Xenova/upscaler',
+    onProgress
   );
 
-  onProgress({ progress: 40, stage: '正在推理（4x 超分，WASM 较慢请耐心等待）' });
+  onProgress({ progress: 40, stage: '正在推理（超分放大）' });
 
   const inputImage = new RawImage(
     new Uint8Array(imageData.data),

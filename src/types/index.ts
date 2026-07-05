@@ -67,30 +67,3 @@ export interface ProcessedImage {
   height: number;
   size: number;
 }
-
-/** 自定义模型 API 的响应格式 */
-export type ApiResponseFormat = 'binary' | 'base64-json' | 'json-url';
-
-/** 自定义模型 API 配置（用于 AI 修复 / AI 放大等需要外部 API 的场景） */
-export interface CustomApiConfig {
-  /** API 接口地址 */
-  url: string;
-  /** API Key（作为 Bearer Token 发送，可选） */
-  apiKey: string;
-  /** 响应格式 */
-  responseFormat: ApiResponseFormat;
-  /** 当响应为 JSON 时，图片数据/URL 在 JSON 中的字段路径，如 "result" 或 "data.output" */
-  imagePath: string;
-  /** 是否已在请求体中包含 data URI 前缀（data:image/png;base64,） */
-  useDataUri: boolean;
-}
-
-/** 老照片修复模式 */
-export type RestoreMode = 'local' | 'ai-api';
-
-/** 预设 API 模板 */
-export interface ApiPreset {
-  name: string;
-  description: string;
-  config: Partial<CustomApiConfig>;
-}

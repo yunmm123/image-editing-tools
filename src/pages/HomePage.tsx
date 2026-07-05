@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom';
 import {
   Scissors,
   ZoomIn,
-  Wand2,
+  Stamp,
   Archive,
   Repeat,
   IdCard,
@@ -17,7 +17,7 @@ const TOOLS = [
   {
     to: '/remove-bg',
     title: 'AI 智能抠图',
-    description: '基于 RMBG-1.4 模型，一键移除背景，生成透明 PNG',
+    description: '基于 MODNet 模型，一键移除背景，生成透明 PNG',
     icon: Scissors,
     badge: 'AI',
     accent: 'brand' as const,
@@ -25,16 +25,16 @@ const TOOLS = [
   {
     to: '/upscale',
     title: 'AI 无损放大',
-    description: '4 倍超分辨率，让模糊小图变高清大图',
+    description: 'AI 超分辨率放大，让模糊小图变高清大图',
     icon: ZoomIn,
     badge: 'AI',
     accent: 'brand' as const,
   },
   {
-    to: '/restore',
-    title: '老照片修复',
-    description: 'CLAHE 对比度增强 + 双边滤波去噪 + 锐化，纯 JS 算法',
-    icon: Wand2,
+    to: '/watermark',
+    title: '图片水印',
+    description: '文字/图片水印，支持平铺铺满、旋转、透明度调整',
+    icon: Stamp,
     accent: 'accent' as const,
   },
   {
@@ -106,7 +106,7 @@ export default function HomePage() {
             </h1>
             <p className="mx-auto mt-6 max-w-2xl text-base text-slate-600 dark:text-slate-300 sm:text-lg">
               免费、开源、隐私安全的 AI 图片在线处理工具。所有处理在浏览器本地完成，
-              图片不上传，保护隐私。支持 AI 抠图、无损放大、老照片修复、压缩、格式转换、证件照换底。
+              图片不上传，保护隐私。支持 AI 抠图、无损放大、图片水印、压缩、格式转换、证件照换底。
             </p>
             <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
               <Link to="/remove-bg" className="btn-primary text-base">

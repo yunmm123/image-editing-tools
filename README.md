@@ -30,9 +30,9 @@ AI 能力基于 [`@huggingface/transformers`](https://github.com/huggingface/tra
 
 | 功能 | 说明 | 技术 |
 | --- | --- | --- |
-| 🎨 **AI 智能抠图** | 一键移除背景，生成透明 PNG，可换纯色背景 | `briaai/RMBG-1.4` |
-| 🔍 **AI 无损放大** | 2x / 4x 超分辨率，让模糊小图变高清 | `Xenova/swin2SR-realworld-sr-x4-64-bsrgan-psnr` |
-| 🪄 **老照片修复** | 自动白平衡 + CLAHE 对比度 + 双边去噪 + 锐化 | 纯 JS Canvas 算法 |
+| 🎨 **AI 智能抠图** | 一键移除背景，生成透明 PNG，可换纯色背景 | `Xenova/modnet` |
+| 🔍 **AI 无损放大** | AI 超分辨率放大，让模糊小图变高清 | `Xenova/upscaler` |
+| 📛 **图片水印** | 文字/图片水印，支持平铺铺满、旋转、透明度调整 | 纯 JS Canvas |
 | 🗜️ **图片压缩** | 质量可调，JPEG/WebP/AVIF，批量 ZIP 下载 | Canvas 重编码 |
 | 🔁 **格式转换** | PNG / JPEG / WebP / AVIF / BMP 互转 | Canvas 重编码 |
 | 🪪 **证件照换底** | 一寸 / 二寸规格，白蓝红渐变背景 | 复用抠图模型 |
@@ -41,9 +41,9 @@ AI 能力基于 [`@huggingface/transformers`](https://github.com/huggingface/tra
 
 > 以下为占位图，请替换为实际的 before/after 截图。
 
-| AI 抠图 | AI 放大 | 老照片修复 |
+| AI 抠图 | AI 放大 | 图片水印 |
 | --- | --- | --- |
-| ![remove-bg](https://via.placeholder.com/480x300/EEF2FF/4F46E5?text=AI+%E6%8A%A0%E5%9B%BE+Before+%2F+After) | ![upscale](https://via.placeholder.com/480x300/ECFDF5/10B981?text=AI+%E6%94%BE%E5%A4%A7+Before+%2F+After) | ![restore](https://via.placeholder.com/480x300/FEF3C7/D97706?text=%E8%80%81%E7%85%A7%E7%89%87%E4%BF%AE%E5%A4%8D+Before+%2F+After) |
+| ![remove-bg](https://via.placeholder.com/480x300/EEF2FF/4F46E5?text=AI+%E6%8A%A0%E5%9B%BE+Before+%2F+After) | ![upscale](https://via.placeholder.com/480x300/ECFDF5/10B981?text=AI+%E6%94%BE%E5%A4%A7+Before+%2F+After) | ![watermark](https://via.placeholder.com/480x300/FEF3C7/D97706?text=%E5%9B%BE%E7%89%87%E6%B0%B4%E5%8D%B0+Before+%2F+After) |
 
 ## 🛠️ 技术栈
 
@@ -134,9 +134,9 @@ All image processing runs **entirely in your browser** — your images are **nev
 
 | Feature | Description | Tech |
 | --- | --- | --- |
-| 🎨 **AI Background Removal** | One-click transparent PNG, with solid color background swap | `briaai/RMBG-1.4` |
-| 🔍 **AI Super Resolution** | 2x / 4x upscale, sharpen blurry images | `Xenova/swin2SR-realworld-sr-x4-64-bsrgan-psnr` |
-| 🪄 **Old Photo Restoration** | White balance + CLAHE + bilateral denoise + sharpen | Pure JS Canvas |
+| 🎨 **AI Background Removal** | One-click transparent PNG, with solid color background swap | `Xenova/modnet` |
+| 🔍 **AI Super Resolution** | 2x / 4x upscale, sharpen blurry images | `Xenova/upscaler` |
+| 📛 **Image Watermark** | Text/image watermark, tile fill, rotation, opacity | Pure JS Canvas |
 | 🗜️ **Image Compression** | Quality slider, JPEG/WebP/AVIF, batch ZIP | Canvas re-encode |
 | 🔁 **Format Conversion** | PNG / JPEG / WebP / AVIF / BMP | Canvas re-encode |
 | 🪪 **ID Photo** | 1-inch / 2-inch sizes, white/blue/red backgrounds | Reuses BG removal |
