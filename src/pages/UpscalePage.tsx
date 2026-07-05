@@ -82,7 +82,7 @@ export default function UpscalePage() {
           <div>
             <h1 className="text-2xl font-bold text-slate-900 dark:text-white sm:text-3xl">AI 无损放大</h1>
             <p className="text-sm text-slate-500 dark:text-slate-400">
-              基于 swin2SR 模型 4 倍超分辨率，提升图片清晰度
+              基于 swin2SR 模型超分辨率，2x / 4x 提升图片清晰度
             </p>
           </div>
           <span className="ml-auto rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600 dark:bg-slate-800 dark:text-slate-300">
@@ -110,6 +110,9 @@ export default function UpscalePage() {
                   图片过大已自动缩放，可能影响放大效果
                 </p>
               )}
+              <p className="rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-500 dark:bg-slate-800/50 dark:text-slate-400">
+                为防止浏览器整数溢出，过大的图片会自动等比缩小后再放大。建议上传 1024px 以内的小图获得最佳效果。
+              </p>
 
               {/* 倍率选择 */}
               <div>
