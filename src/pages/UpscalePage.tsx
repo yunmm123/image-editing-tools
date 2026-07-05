@@ -1,18 +1,20 @@
 import { useState, useCallback, useMemo } from 'react';
-import { ZoomIn, RotateCcw, Loader2, ImageIcon, Sparkles, Zap } from 'lucide-react';
+import { ZoomIn, RotateCcw, Loader2, ImageIcon, Sparkles, Zap, Cloud, Settings } from 'lucide-react';
 import ImageUploader from '../components/ImageUploader';
 import ImageCompare from '../components/ImageCompare';
 import ProgressBar from '../components/ProgressBar';
 import DownloadButton from '../components/DownloadButton';
+import SettingsModal from '../components/SettingsModal';
 import { useImageProcessor } from '../hooks/useImageProcessor';
 import { superResolve } from '../services/superResolution';
 import type { EnhanceLevel } from '../services/superResolution';
 import { aiSuperResolve } from '../services/aiSuperResolution';
+import { cloudSuperResolve, getReplicateToken } from '../services/cloudSuperResolution';
 import { formatBytes } from '../utils/format';
 import { buildOutputFilename } from '../utils/image';
 
 /** 引擎类型 */
-type Engine = 'ai' | 'canvas';
+type Engine = 'cloud' | 'ai' | 'canvas';
 
 /** 增强强度选项（Canvas 模式） */
 const ENHANCE_OPTIONS: Array<{ value: EnhanceLevel; label: string; desc: string }> = [
@@ -21,8 +23,23 @@ const ENHANCE_OPTIONS: Array<{ value: EnhanceLevel; label: string; desc: string 
   { value: 'strong', label: '强', desc: '模糊照片强力增强' },
 ];
 
+/** 引擎选项配置 */
+const ENGINE_OPTIONS: Array<{
+  value: Engine;
+  icon: typeof Cloud;
+  label: string;
+  desc: string;
+}> = [
+  { value: 'cloud', icon: Cloud, label: '云端 AI', desc: 'Replicate Real-ESRGAN，质量最高' },
+  { value: 'ai', icon: Sparkles, label: '本地 AI', desc: 'ESRGAN，质量好，需下载模型' },
+  { value: 'canvas', icon: Zap, label: 'Canvas 快速', desc: '多轮锐化，秒级' },
+];
+
 /**
- * 图片放大页：支持 AI 超分（ESRGAN）和 Canvas 快速放大两种引擎
+ * 图片放大页：支持三种引擎
+ * - 云端 AI（Replicate Real-ESRGAN）：质量最高，需 API Token
+ * - 本地 AI（UpscalerJS ESRGAN）：质量好，纯本地，需下载模型
+ * - Canvas 快速：多轮锐化，秒级，无模型
  */
 export default function UpscalePage() {
   const { loadAndPrepare, wasScaled } = useImageProcessor();
@@ -33,11 +50,13 @@ export default function UpscalePage() {
   const [resultBlob, setResultBlob] = useState<Blob | null>(null);
   const [resultSize, setResultSize] = useState<{ width: number; height: number } | null>(null);
   const [scale, setScale] = useState<2 | 4>(4);
-  const [engine, setEngine] = useState<Engine>('ai');
+  const [engine, setEngine] = useState<Engine>('cloud');
   const [enhance, setEnhance] = useState<EnhanceLevel>('medium');
   const [processing, setProcessing] = useState(false);
   const [progress, setProgress] = useState<number | null>(null);
   const [stage, setStage] = useState<string>('');
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [replicateToken, setReplicateToken] = useState<string>(getReplicateToken());
 
   const handleFiles = useCallback(
     async (files: File[]) => {
@@ -59,6 +78,11 @@ export default function UpscalePage() {
 
   const handleProcess = useCallback(async () => {
     if (!file) return;
+    // 云端 AI 模式下检查 Token
+    if (engine === 'cloud' && !replicateToken) {
+      setSettingsOpen(true);
+      return;
+    }
     setProcessing(true);
     setStage('准备中');
     setProgress(0);
@@ -68,7 +92,9 @@ export default function UpscalePage() {
         setStage(info.stage);
         setProgress(info.progress);
       };
-      const result = engine === 'ai'
+      const result = engine === 'cloud'
+        ? await cloudSuperResolve({ imageData, scale, apiToken: replicateToken, onProgress })
+        : engine === 'ai'
         ? await aiSuperResolve({ imageData, scale, onProgress })
         : await superResolve({ imageData, scale, enhance, onProgress });
       setResultUrl(result.url);
@@ -77,10 +103,11 @@ export default function UpscalePage() {
     } catch (err) {
       console.error(err);
       setStage('处理失败：' + (err instanceof Error ? err.message : String(err)));
+      setProgress(null);
     } finally {
       setProcessing(false);
     }
-  }, [file, loadAndPrepare, scale, engine, enhance]);
+  }, [file, loadAndPrepare, scale, engine, enhance, replicateToken]);
 
   const handleReset = () => {
     if (previewUrl) URL.revokeObjectURL(previewUrl);
@@ -106,12 +133,22 @@ export default function UpscalePage() {
           <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br from-brand-600 to-accent-500 text-white shadow-md">
             <ZoomIn size={22} />
           </div>
-          <div>
+          <div className="flex-1">
             <h1 className="text-2xl font-bold text-slate-900 dark:text-white sm:text-3xl">图片放大</h1>
             <p className="text-sm text-slate-500 dark:text-slate-400">
-              AI 超分（ESRGAN，脑补细节）或 Canvas 快速放大（多轮锐化）
+              云端 AI（Real-ESRGAN，质量最高） · 本地 AI · Canvas 快速
             </p>
           </div>
+          {/* 设置按钮（云端 AI 需要 Token） */}
+          <button
+            type="button"
+            onClick={() => setSettingsOpen(true)}
+            className="btn-secondary"
+            title="设置 Replicate API Token"
+          >
+            <Settings size={16} />
+            设置
+          </button>
         </div>
       </div>
 
@@ -138,41 +175,37 @@ export default function UpscalePage() {
               {/* 引擎选择 */}
               <div>
                 <p className="mb-2 text-sm font-medium text-slate-700 dark:text-slate-200">放大引擎</p>
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setEngine('ai')}
-                    className={`flex items-center gap-2 rounded-lg border px-3 py-2.5 text-left transition-colors ${
-                      engine === 'ai'
-                        ? 'border-brand-600 bg-brand-50 text-brand-700 dark:bg-brand-900/30 dark:text-brand-300'
-                        : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300'
-                    }`}
-                  >
-                    <Sparkles size={18} className="shrink-0" />
-                    <div className="min-w-0">
-                      <div className="text-sm font-medium">AI 超分</div>
-                      <div className="text-xs opacity-70">ESRGAN，质量高，慢</div>
-                    </div>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setEngine('canvas')}
-                    className={`flex items-center gap-2 rounded-lg border px-3 py-2.5 text-left transition-colors ${
-                      engine === 'canvas'
-                        ? 'border-brand-600 bg-brand-50 text-brand-700 dark:bg-brand-900/30 dark:text-brand-300'
-                        : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300'
-                    }`}
-                  >
-                    <Zap size={18} className="shrink-0" />
-                    <div className="min-w-0">
-                      <div className="text-sm font-medium">Canvas 快速</div>
-                      <div className="text-xs opacity-70">多轮锐化，秒级</div>
-                    </div>
-                  </button>
+                <div className="grid grid-cols-3 gap-2">
+                  {ENGINE_OPTIONS.map((opt) => {
+                    const Icon = opt.icon;
+                    return (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        onClick={() => setEngine(opt.value)}
+                        className={`flex flex-col items-center gap-1 rounded-lg border px-2 py-2.5 text-center transition-colors ${
+                          engine === opt.value
+                            ? 'border-brand-600 bg-brand-50 text-brand-700 dark:bg-brand-900/30 dark:text-brand-300'
+                            : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300'
+                        }`}
+                      >
+                        <Icon size={18} className="shrink-0" />
+                        <div className="text-xs font-medium">{opt.label}</div>
+                        <div className="text-[10px] leading-tight opacity-70">{opt.desc}</div>
+                      </button>
+                    );
+                  })}
                 </div>
+                {engine === 'cloud' && (
+                  <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+                    {replicateToken
+                      ? '已配置 Token，单次约 $0.0034，点击右上角「设置」可修改'
+                      : '⚠️ 未配置 Token，点击右上角「设置」填入 Replicate Token'}
+                  </p>
+                )}
                 {engine === 'ai' && (
                   <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
-                    首次使用需下载 ~30MB 模型（浏览器缓存后秒开），适合模糊照片修复
+                    首次使用需下载 ~30MB 模型（浏览器缓存后秒开），完全本地
                   </p>
                 )}
               </div>
@@ -249,6 +282,11 @@ export default function UpscalePage() {
                   label={stage}
                 />
               )}
+              {!processing && stage.startsWith('处理失败') && (
+                <p className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700 dark:bg-red-900/30 dark:text-red-300">
+                  {stage}
+                </p>
+              )}
             </div>
           )}
         </div>
@@ -281,6 +319,12 @@ export default function UpscalePage() {
           )}
         </div>
       </div>
+
+      <SettingsModal
+        open={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+        onTokenChange={setReplicateToken}
+      />
     </div>
   );
 }
