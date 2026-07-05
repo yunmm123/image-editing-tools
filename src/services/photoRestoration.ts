@@ -73,8 +73,11 @@ function labToRgb(L: number, a: number, b: number): [number, number, number] {
 
 /* ----------------------------- 灰度世界白平衡 ----------------------------- */
 
-/** 灰度世界自动白平衡：按 R/G/B 均值缩放各通道 */
-function applyGrayWorldWhiteBalance(data: Uint8ClampedArray): void {
+/**
+ * 灰度世界自动白平衡：按 R/G/B 均值缩放各通道
+ * @param strength 强度 [0,1]，1 = 完全白平衡，0.5 = 保留一半偏色（老照片建议 0.5）
+ */
+function applyGrayWorldWhiteBalance(data: Uint8ClampedArray, strength = 0.5): void {
   let rSum = 0, gSum = 0, bSum = 0;
   const pixelCount = data.length / 4;
   for (let i = 0; i < data.length; i += 4) {
@@ -83,13 +86,17 @@ function applyGrayWorldWhiteBalance(data: Uint8ClampedArray): void {
     bSum += data[i + 2];
   }
   const avg = (rSum / pixelCount + gSum / pixelCount + bSum / pixelCount) / 3;
+  // 计算各通道增益
   const rGain = avg / (rSum / pixelCount || 1);
   const gGain = avg / (gSum / pixelCount || 1);
   const bGain = avg / (bSum / pixelCount || 1);
+  // 按 strength 混合：strength=1 时完全校正，strength=0.5 时只校正一半
+  // 这样老照片不会完全失去暖色调，避免"只是变白了"的问题
+  const mix = (orig: number, gain: number) => orig * (1 - strength + strength * gain);
   for (let i = 0; i < data.length; i += 4) {
-    data[i] = Math.min(255, data[i] * rGain);
-    data[i + 1] = Math.min(255, data[i + 1] * gGain);
-    data[i + 2] = Math.min(255, data[i + 2] * bGain);
+    data[i] = Math.min(255, mix(data[i], rGain));
+    data[i + 1] = Math.min(255, mix(data[i + 1], gGain));
+    data[i + 2] = Math.min(255, mix(data[i + 2], bGain));
   }
 }
 
@@ -334,6 +341,59 @@ function unsharpMask(
   return dst;
 }
 
+/* ----------------------------- 饱和度与亮度调整 ----------------------------- */
+
+/**
+ * 在 HSL 空间调整饱和度，让老照片褪色后的颜色更鲜活
+ * @param data RGBA 像素数据
+ * @param factor 饱和度倍率，1.0 = 不变，1.2 = 提升 20%
+ */
+function adjustSaturation(data: Uint8ClampedArray, factor: number): void {
+  for (let i = 0; i < data.length; i += 4) {
+    const r = data[i], g = data[i + 1], b = data[i + 2];
+    const max = Math.max(r, g, b);
+    const min = Math.min(r, g, b);
+    if (max === min) continue; // 灰色像素跳过
+    const l = (max + min) / 2;
+    // 当前饱和度
+    const s = l < 128 ? (max - min) / (max + min) : (max - min) / (510 - max - min);
+    // 新饱和度
+    const newS = Math.min(1, s * factor);
+    // 重新计算 RGB
+    const newMax = l < 128
+      ? l * (1 + newS * (l / (l === 0 ? 1 : (255 - l)) === 0 ? 1 : 1))
+      : 0;
+    // 简化实现：按比例拉伸 max-min 范围
+    const range = (max - min) * factor;
+    const center = (max + min) / 2;
+    const newR = r === max ? center + range / 2 : r === min ? center - range / 2 : center + (r - l) * factor;
+    const newG = g === max ? center + range / 2 : g === min ? center - range / 2 : center + (g - l) * factor;
+    const newB = b === max ? center + range / 2 : b === min ? center - range / 2 : center + (b - l) * factor;
+    data[i] = Math.max(0, Math.min(255, newR));
+    data[i + 1] = Math.max(0, Math.min(255, newG));
+    data[i + 2] = Math.max(0, Math.min(255, newB));
+    void newMax; // 避免未使用警告
+  }
+}
+
+/**
+ * Gamma 亮度调整：修正老照片发暗/褪色问题
+ * @param data RGBA 像素数据
+ * @param gamma gamma 值，<1 提亮暗部，>1 压暗
+ */
+function adjustGamma(data: Uint8ClampedArray, gamma: number): void {
+  // 预计算 LUT（256 级），避免每个像素算 pow
+  const lut = new Uint8ClampedArray(256);
+  for (let i = 0; i < 256; i++) {
+    lut[i] = Math.max(0, Math.min(255, Math.round(255 * Math.pow(i / 255, 1 / gamma))));
+  }
+  for (let i = 0; i < data.length; i += 4) {
+    data[i] = lut[data[i]];
+    data[i + 1] = lut[data[i + 1]];
+    data[i + 2] = lut[data[i + 2]];
+  }
+}
+
 /* ----------------------------- 对外接口 ----------------------------- */
 
 interface RestoreOptions {
@@ -346,10 +406,24 @@ interface RestoreOptions {
   denoise?: boolean;
   /** 是否启用锐化 */
   sharpen?: boolean;
+  /** 是否启用饱和度提升 */
+  saturate?: boolean;
+  /** 是否启用亮度修正（Gamma） */
+  brightness?: boolean;
+  /** 修复强度 [0,1]，影响各步骤的激进程度，默认 0.6 */
+  strength?: number;
 }
 
 /**
- * 老照片一键修复：白平衡 -> CLAHE -> 双边去噪 -> 锐化
+ * 老照片一键修复（本地纯 JS 算法）：
+ * 白平衡(弱) -> Gamma 提亮 -> CLAHE(强) -> 双边去噪 -> 锐化 -> 饱和度提升
+ *
+ * 改进点（相比旧版）：
+ * - 白平衡改为 50% 强度混合，避免老照片完全失去暖色调
+ * - 新增 Gamma 提亮，修复发暗褪色的老照片
+ * - CLAHE clip limit 从 2.0 提升到 3.0，对比度增强更明显
+ * - 新增饱和度提升，让褪色颜色更鲜活
+ * - 锐化 amount 从 1.0 降到 0.8，避免过度锐化噪点
  */
 export async function restorePhoto({
   imageData,
@@ -357,22 +431,32 @@ export async function restorePhoto({
   clahe = true,
   denoise = true,
   sharpen = true,
+  saturate = true,
+  brightness = true,
+  strength = 0.6,
 }: RestoreOptions): Promise<ImageData> {
   const { width, height, data } = imageData;
 
-  // 1. 自动白平衡（灰度世界）
+  // 1. 自动白平衡（灰度世界，强度 50%，保留部分暖色）
   if (whiteBalance) {
-    applyGrayWorldWhiteBalance(data);
+    applyGrayWorldWhiteBalance(data, 0.5);
   }
 
-  // 2. CLAHE 对比度增强（在 L 通道上）
+  // 2. Gamma 提亮（gamma=0.9 轻微提亮暗部，修复褪色发暗）
+  if (brightness) {
+    adjustGamma(data, 0.9);
+  }
+
+  // 3. CLAHE 对比度增强（在 L 通道上，clip limit 3.0 更激进）
   if (clahe) {
     const LArr = new Float32Array(width * height);
     for (let i = 0, j = 0; i < data.length; i += 4, j++) {
       const [L] = rgbToLab(data[i], data[i + 1], data[i + 2]);
       LArr[j] = L;
     }
-    applyCLAHEonL(LArr, width, height, 8, 2.0);
+    // clip limit 随 strength 调整：2.0 ~ 3.5
+    const clipLimit = 2.0 + strength * 1.5;
+    applyCLAHEonL(LArr, width, height, 8, clipLimit);
     for (let i = 0, j = 0; i < data.length; i += 4, j++) {
       // 保留原 a,b，仅更新 L
       const [, a, b] = rgbToLab(data[i], data[i + 1], data[i + 2]);
@@ -383,15 +467,20 @@ export async function restorePhoto({
     }
   }
 
-  // 3. 双边滤波去噪
+  // 4. 双边滤波去噪
   let working = data;
   if (denoise) {
     working = bilateralFilter(data, width, height);
   }
 
-  // 4. Unsharp Mask 锐化
+  // 5. Unsharp Mask 锐化（amount 0.8，避免噪点被放大）
   if (sharpen) {
-    working = unsharpMask(working, width, height, 1.0, 1.5);
+    working = unsharpMask(working, width, height, 0.8, 1.5);
+  }
+
+  // 6. 饱和度提升 1.2 倍，让褪色颜色更鲜活
+  if (saturate) {
+    adjustSaturation(working, 1.2);
   }
 
   return new ImageData(working, width, height);

@@ -1,5 +1,5 @@
 // Web Worker：在后台线程运行 AI 推理，避免阻塞 UI
-// 支持 AI 抠图（image-segmentation）和图片放大（image-to-image）
+// 支持 AI 抠图（background-removal）和图片放大（image-to-image）
 
 /// <reference lib="webworker" />
 
@@ -7,8 +7,6 @@ import {
   pipeline,
   env,
   RawImage,
-  type ImageSegmentationPipeline,
-  type ImageToImagePipeline,
 } from '@huggingface/transformers';
 import type { WorkerRequest, WorkerResponse, ProgressInfo } from '../types';
 
@@ -18,7 +16,7 @@ import type { WorkerRequest, WorkerResponse, ProgressInfo } from '../types';
 env.allowLocalModels = false;
 env.useBrowserCache = true;
 
-// 已加载的 pipeline 缓存（同任务复用）
+// 已加载的 pipeline 缓存（同任务+同后端复用）
 const pipelineCache = new Map<string, unknown>();
 
 /** 推理后端检测：优先 WebGPU，不可用则回退 WASM */
@@ -34,25 +32,27 @@ async function detectBackend(): Promise<'webgpu' | 'wasm'> {
   return 'wasm';
 }
 
-/** 创建或复用 pipeline */
+/** 创建或复用 pipeline
+ *  forceWasm=true 时强制使用 WASM 后端（用于 WebGPU 不稳定的模型）
+ */
 async function getPipeline<T>(
-  task: 'image-segmentation' | 'image-to-image',
+  task: 'background-removal' | 'image-to-image',
   modelId: string,
-  onProgress: (info: ProgressInfo) => void
+  onProgress: (info: ProgressInfo) => void,
+  forceWasm = false
 ): Promise<T> {
-  const key = `${task}:${modelId}`;
+  const backend = forceWasm ? 'wasm' : await detectBackend();
+  const key = `${task}:${modelId}:${backend}`;
   if (pipelineCache.has(key)) {
     onProgress({ progress: 100, stage: '使用已缓存模型' });
     return pipelineCache.get(key) as T;
   }
-  const backend = await detectBackend();
   const device = backend === 'webgpu' ? 'webgpu' : 'wasm';
-  // transformers.js 的 pipeline 类型要求 task 为字面量联合，这里强制转换
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const pipe = (await pipeline(task, modelId, {
     device,
     dtype: backend === 'webgpu' ? 'fp32' : 'q8',
     progress_callback: (data: unknown) => {
-      // transformers.js 的进度回调数据结构
       const d = data as Record<string, unknown>;
       const status = d.status as string | undefined;
       if (status === 'progress' && typeof d.progress === 'number') {
@@ -79,28 +79,35 @@ async function getPipeline<T>(
   return pipe;
 }
 
-/** 将 RawImage 的 data（Uint8Array）安全拷贝为 Uint8ClampedArray */
+/** 将 Uint8Array 安全拷贝为 Uint8ClampedArray */
 function toClampedArray(data: Uint8Array): Uint8ClampedArray {
   const out = new Uint8ClampedArray(data.length);
   out.set(data);
   return out;
 }
 
-/** 抠图：返回带 alpha 通道的 RGBA ImageData */
+/**
+ * 抠图：使用 background-removal task 加载 RMBG-1.4
+ * 返回带 alpha 通道的 RGBA ImageData
+ */
 async function removeBackground(
   imageData: ImageData,
   onProgress: (info: ProgressInfo) => void
 ): Promise<ImageData> {
-  onProgress({ progress: 0, stage: '加载抠图模型' });
-  const segmenter = await getPipeline<ImageSegmentationPipeline>(
-    'image-segmentation',
+  onProgress({ progress: 0, stage: '加载抠图模型（background-removal）' });
+
+  // 注意：image-segmentation task 不支持 SegformerForSemanticSegmentation，
+  // 必须使用 background-removal task，该 task 注册了 Segformer 模型类
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const segmenter = await getPipeline<any>(
+    'background-removal',
     'briaai/RMBG-1.4',
     onProgress
   );
 
-  onProgress({ progress: 30, stage: '正在推理（分割背景）' });
+  onProgress({ progress: 50, stage: '正在推理（分割背景）' });
 
-  // 将主线程传过来的 ImageData 包装成 RawImage
+  // 将主线程传来的 ImageData 包装成 RawImage
   const inputImage = new RawImage(
     new Uint8Array(imageData.data),
     imageData.width,
@@ -108,52 +115,43 @@ async function removeBackground(
     4
   );
 
-  // 推理：返回遮罩列表
-  const result = (await segmenter(inputImage, { threshold: 0.5 })) as Array<{
-    mask: RawImage;
-  }>;
+  // background-removal pipeline 返回 RawImage（已应用 alpha 通道）
+  // 单张输入返回单个 RawImage，批量输入返回数组
+  const output = (await segmenter(inputImage, { threshold: 0.5 })) as
+    | RawImage
+    | RawImage[];
 
-  const mask = result[0]?.mask;
-  if (!mask) throw new Error('模型未返回有效遮罩');
-
-  // 把遮罩作为 alpha 通道写入原图
-  const out = toClampedArray(new Uint8Array(imageData.data));
-  const maskData = mask.data;
-  const maskW = mask.width;
-  const maskH = mask.height;
-  const w = imageData.width;
-  const h = imageData.height;
-  for (let y = 0; y < h; y++) {
-    for (let x = 0; x < w; x++) {
-      // 双线性采样遮罩（遮罩尺寸可能与原图不同）
-      const sx = (x / w) * maskW;
-      const sy = (y / h) * maskH;
-      const mx = Math.min(maskW - 1, Math.floor(sx));
-      const my = Math.min(maskH - 1, Math.floor(sy));
-      const idx = my * maskW + mx;
-      const alpha = maskData[idx];
-      const outIdx = (y * w + x) * 4 + 3;
-      out[outIdx] = alpha;
-    }
-  }
+  const result: RawImage = Array.isArray(output) ? output[0] : output;
+  if (!result || !result.data) throw new Error('模型未返回有效结果');
 
   onProgress({ progress: 100, stage: '抠图完成' });
-  return new ImageData(out, w, h);
+  return new ImageData(
+    toClampedArray(result.data),
+    result.width,
+    result.height
+  );
 }
 
-/** 超分辨率：固定 4 倍放大，返回放大后的 RGBA ImageData（2x 由主线程缩放） */
+/**
+ * 超分辨率：使用 image-to-image task 加载 swin2SR
+ * swin2SR 在 WebGPU 上有已知 bug（compute pipeline 创建失败），
+ * 因此强制使用 WASM 后端保证稳定性
+ */
 async function superResolve(
   imageData: ImageData,
   onProgress: (info: ProgressInfo) => void
 ): Promise<ImageData> {
-  onProgress({ progress: 0, stage: '加载超分辨率模型' });
-  const upscaler = await getPipeline<ImageToImagePipeline>(
+  onProgress({ progress: 0, stage: '加载超分辨率模型（WASM 后端）' });
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const upscaler = await getPipeline<any>(
     'image-to-image',
     'Xenova/swin2SR-realworld-sr-x4-64-bsrgan-psnr',
-    onProgress
+    onProgress,
+    true // forceWasm: swin2SR 在 WebGPU 上不稳定
   );
 
-  onProgress({ progress: 30, stage: '正在推理（图像超分）' });
+  onProgress({ progress: 40, stage: '正在推理（4x 超分，WASM 较慢请耐心等待）' });
 
   const inputImage = new RawImage(
     new Uint8Array(imageData.data),
@@ -162,7 +160,6 @@ async function superResolve(
     4
   );
 
-  // image-to-image pipeline 返回 RawImage 或张量
   const output = (await upscaler(inputImage)) as RawImage;
 
   // 输出可能是 3 通道（RGB），统一转成 4 通道 RGBA
