@@ -36,3 +36,4 @@ dist-ssr
 
 # Trae documents
 .trae/documents/
+tsconfig.tsbuildinfo
