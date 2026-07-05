@@ -1,15 +1,14 @@
 import { useState, useCallback, useMemo } from 'react';
-import { ZoomIn, RotateCcw, Loader2, ImageIcon, Sparkles, Zap, Cloud, Settings } from 'lucide-react';
+import { ZoomIn, RotateCcw, Loader2, ImageIcon, Sparkles, Zap, Cloud } from 'lucide-react';
 import ImageUploader from '../components/ImageUploader';
 import ImageCompare from '../components/ImageCompare';
 import ProgressBar from '../components/ProgressBar';
 import DownloadButton from '../components/DownloadButton';
-import SettingsModal from '../components/SettingsModal';
 import { useImageProcessor } from '../hooks/useImageProcessor';
 import { superResolve } from '../services/superResolution';
 import type { EnhanceLevel } from '../services/superResolution';
 import { aiSuperResolve } from '../services/aiSuperResolution';
-import { cloudSuperResolve, getReplicateToken } from '../services/cloudSuperResolution';
+import { cloudSuperResolve } from '../services/cloudSuperResolution';
 import { formatBytes } from '../utils/format';
 import { buildOutputFilename } from '../utils/image';
 
@@ -30,14 +29,14 @@ const ENGINE_OPTIONS: Array<{
   label: string;
   desc: string;
 }> = [
-  { value: 'cloud', icon: Cloud, label: '云端 AI', desc: 'Replicate Real-ESRGAN，质量最高' },
+  { value: 'cloud', icon: Cloud, label: '云端 AI', desc: 'Real-ESRGAN，免费 · 质量最高' },
   { value: 'ai', icon: Sparkles, label: '本地 AI', desc: 'ESRGAN，质量好，需下载模型' },
   { value: 'canvas', icon: Zap, label: 'Canvas 快速', desc: '多轮锐化，秒级' },
 ];
 
 /**
  * 图片放大页：支持三种引擎
- * - 云端 AI（Replicate Real-ESRGAN）：质量最高，需 API Token
+ * - 云端 AI（image-upscaling.net Real-ESRGAN）：完全免费，无需注册/API Key，质量最高
  * - 本地 AI（UpscalerJS ESRGAN）：质量好，纯本地，需下载模型
  * - Canvas 快速：多轮锐化，秒级，无模型
  */
@@ -55,8 +54,6 @@ export default function UpscalePage() {
   const [processing, setProcessing] = useState(false);
   const [progress, setProgress] = useState<number | null>(null);
   const [stage, setStage] = useState<string>('');
-  const [settingsOpen, setSettingsOpen] = useState(false);
-  const [replicateToken, setReplicateToken] = useState<string>(getReplicateToken());
 
   const handleFiles = useCallback(
     async (files: File[]) => {
@@ -78,11 +75,6 @@ export default function UpscalePage() {
 
   const handleProcess = useCallback(async () => {
     if (!file) return;
-    // 云端 AI 模式下检查 Token
-    if (engine === 'cloud' && !replicateToken) {
-      setSettingsOpen(true);
-      return;
-    }
     setProcessing(true);
     setStage('准备中');
     setProgress(0);
@@ -93,7 +85,7 @@ export default function UpscalePage() {
         setProgress(info.progress);
       };
       const result = engine === 'cloud'
-        ? await cloudSuperResolve({ imageData, scale, apiToken: replicateToken, onProgress })
+        ? await cloudSuperResolve({ imageData, scale, onProgress })
         : engine === 'ai'
         ? await aiSuperResolve({ imageData, scale, onProgress })
         : await superResolve({ imageData, scale, enhance, onProgress });
@@ -107,7 +99,7 @@ export default function UpscalePage() {
     } finally {
       setProcessing(false);
     }
-  }, [file, loadAndPrepare, scale, engine, enhance, replicateToken]);
+  }, [file, loadAndPrepare, scale, engine, enhance]);
 
   const handleReset = () => {
     if (previewUrl) URL.revokeObjectURL(previewUrl);
@@ -136,19 +128,9 @@ export default function UpscalePage() {
           <div className="flex-1">
             <h1 className="text-2xl font-bold text-slate-900 dark:text-white sm:text-3xl">图片放大</h1>
             <p className="text-sm text-slate-500 dark:text-slate-400">
-              云端 AI（Real-ESRGAN，质量最高） · 本地 AI · Canvas 快速
+              云端 AI（Real-ESRGAN，完全免费） · 本地 AI · Canvas 快速
             </p>
           </div>
-          {/* 设置按钮（云端 AI 需要 Token） */}
-          <button
-            type="button"
-            onClick={() => setSettingsOpen(true)}
-            className="btn-secondary"
-            title="设置 Replicate API Token"
-          >
-            <Settings size={16} />
-            设置
-          </button>
         </div>
       </div>
 
@@ -198,9 +180,7 @@ export default function UpscalePage() {
                 </div>
                 {engine === 'cloud' && (
                   <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
-                    {replicateToken
-                      ? '已配置 Token，单次约 $0.0034，点击右上角「设置」可修改'
-                      : '⚠️ 未配置 Token，点击右上角「设置」填入 Replicate Token'}
+                    ✅ 完全免费 · 无需注册 · 无需 API Key · 由 image-upscaling.net 提供 Real-ESRGAN 推理
                   </p>
                 )}
                 {engine === 'ai' && (
@@ -319,12 +299,6 @@ export default function UpscalePage() {
           )}
         </div>
       </div>
-
-      <SettingsModal
-        open={settingsOpen}
-        onClose={() => setSettingsOpen(false)}
-        onTokenChange={setReplicateToken}
-      />
     </div>
   );
 }
