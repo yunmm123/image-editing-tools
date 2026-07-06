@@ -94,3 +94,54 @@ export function getCustomApiConfig(feature: 'upscale' | 'removeBg'): CustomApiCo
   if (settings[feature].customApi.url.trim() === '') return null;
   return settings[feature].customApi;
 }
+
+/**
+ * 校验自定义 API 配置是否合法
+ * @returns 错误信息数组，空数组表示通过
+ */
+export function validateCustomApiConfig(config: CustomApiConfig): string[] {
+  const errors: string[] = [];
+  const url = config.url.trim();
+
+  // URL 必填
+  if (!url) {
+    errors.push('API 地址不能为空');
+    return errors;
+  }
+
+  // 必须是合法 URL
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    errors.push('API 地址格式不正确，需以 http:// 或 https:// 开头');
+    return errors;
+  }
+
+  // 协议必须是 http 或 https
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+    errors.push('API 地址协议必须是 http:// 或 https://');
+  }
+
+  // 必须有 host
+  if (!parsed.hostname) {
+    errors.push('API 地址缺少域名');
+  }
+
+  // host 不能是纯数字（防止用户输入端口号等无意义内容）
+  if (parsed.hostname && /^\d+$/.test(parsed.hostname)) {
+    errors.push('API 地址域名不能是纯数字');
+  }
+
+  // host 至少包含一个点（如 example.com）或为 localhost
+  if (parsed.hostname && parsed.hostname !== 'localhost' && !parsed.hostname.includes('.')) {
+    errors.push('API 地址域名格式不正确（应类似 example.com）');
+  }
+
+  // API Key 长度限制（防止误粘贴大段文本）
+  if (config.apiKey.length > 500) {
+    errors.push('API Key 过长（超过 500 字符），请检查');
+  }
+
+  return errors;
+}

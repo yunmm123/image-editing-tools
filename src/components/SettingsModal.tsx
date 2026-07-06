@@ -6,8 +6,8 @@
 
 import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Settings, Save, Info, Cloud, Scissors } from 'lucide-react';
-import { getSettings, saveSettings, type AppSettings, type AiProvider, type ResponseType } from '../services/settings';
+import { X, Settings, Save, Info, Cloud, Scissors, AlertCircle } from 'lucide-react';
+import { getSettings, saveSettings, validateCustomApiConfig, type AppSettings, type AiProvider, type ResponseType } from '../services/settings';
 
 interface SettingsModalProps {
   open: boolean;
@@ -24,6 +24,8 @@ interface FeatureSectionProps {
   onConfigChange: (c: AppSettings['upscale']['customApi']) => void;
   /** 该功能的额外表单字段说明 */
   extraFields?: string;
+  /** 校验错误信息 */
+  errors?: string[];
 }
 
 function FeatureSection({
@@ -35,6 +37,7 @@ function FeatureSection({
   config,
   onConfigChange,
   extraFields,
+  errors = [],
 }: FeatureSectionProps) {
   return (
     <div className="rounded-xl border border-slate-200 p-4 dark:border-slate-700">
@@ -128,6 +131,16 @@ function FeatureSection({
               <span>额外字段：{extraFields}</span>
             </div>
           )}
+          {errors.length > 0 && (
+            <div className="space-y-1 rounded-lg bg-red-50 px-3 py-2 dark:bg-red-900/30">
+              {errors.map((msg, i) => (
+                <div key={i} className="flex items-start gap-1.5 text-xs text-red-700 dark:text-red-300">
+                  <AlertCircle size={12} className="mt-0.5 shrink-0" />
+                  <span>{msg}</span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -136,12 +149,31 @@ function FeatureSection({
 
 export default function SettingsModal({ open, onClose }: SettingsModalProps) {
   const [settings, setSettings] = useState<AppSettings>(getSettings());
+  const [errors, setErrors] = useState<{ upscale: string[]; removeBg: string[] }>({ upscale: [], removeBg: [] });
 
   useEffect(() => {
-    if (open) setSettings(getSettings());
+    if (open) {
+      setSettings(getSettings());
+      setErrors({ upscale: [], removeBg: [] });
+    }
   }, [open]);
 
   const handleSave = () => {
+    // 校验：仅对启用了 custom 的功能校验
+    const upscaleErrors = settings.upscale.provider === 'custom'
+      ? validateCustomApiConfig(settings.upscale.customApi)
+      : [];
+    const removeBgErrors = settings.removeBg.provider === 'custom'
+      ? validateCustomApiConfig(settings.removeBg.customApi)
+      : [];
+    const newErrors = { upscale: upscaleErrors, removeBg: removeBgErrors };
+    setErrors(newErrors);
+
+    // 有错误则阻止保存
+    if (upscaleErrors.length > 0 || removeBgErrors.length > 0) {
+      return;
+    }
+
     saveSettings(settings);
     onClose();
   };
@@ -186,6 +218,7 @@ export default function SettingsModal({ open, onClose }: SettingsModalProps) {
             config={settings.upscale.customApi}
             onConfigChange={(c) => setSettings((s) => ({ ...s, upscale: { ...s.upscale, customApi: c } }))}
             extraFields="scale(2/4) · mode(upscale/restore) · face_enhance(true/false)"
+            errors={errors.upscale}
           />
 
           <FeatureSection
@@ -196,6 +229,7 @@ export default function SettingsModal({ open, onClose }: SettingsModalProps) {
             onProviderChange={(p) => setSettings((s) => ({ ...s, removeBg: { ...s.removeBg, provider: p } }))}
             config={settings.removeBg.customApi}
             onConfigChange={(c) => setSettings((s) => ({ ...s, removeBg: { ...s.removeBg, customApi: c } }))}
+            errors={errors.removeBg}
           />
 
           {/* API 契约说明 */}
