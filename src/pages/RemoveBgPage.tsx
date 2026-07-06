@@ -9,6 +9,8 @@ import MaskEditor from '../components/MaskEditor';
 import { useModelLoader } from '../hooks/useModelLoader';
 import { useImageProcessor } from '../hooks/useImageProcessor';
 import { removeBackground, composeWithColor, applyAlphaToImageData } from '../services/backgroundRemoval';
+import { customRemoveBg } from '../services/customApi';
+import { getCustomApiConfig } from '../services/settings';
 import { drawImageToCanvas, createCanvas, canvasToBlob, MIME_BY_FORMAT, isLossyFormat } from '../utils/canvas';
 import { formatBytes } from '../utils/format';
 import { buildOutputFilename } from '../utils/image';
@@ -90,6 +92,27 @@ export default function RemoveBgPage() {
     if (!file) return;
     try {
       const { imageData } = await loadAndPrepare(file);
+
+      // 优先检查自定义 API
+      const customConfig = getCustomApiConfig('removeBg');
+      if (customConfig) {
+        // 自定义 API 返回带透明背景的 PNG
+        const result = await customRemoveBg({ imageData, config: customConfig });
+        // 从返回 blob 提取 ImageData，复用后续合成流程
+        const bitmap = await createImageBitmap(result.blob);
+        const { ctx } = createCanvas(bitmap.width, bitmap.height);
+        ctx.drawImage(bitmap, 0, 0);
+        const w = bitmap.width;
+        const h = bitmap.height;
+        bitmap.close();
+        const transparent = ctx.getImageData(0, 0, w, h);
+        setTransparentData(transparent);
+        setTransparentBlob(result.blob);
+        setResultUrl(result.url);
+        return;
+      }
+
+      // 默认：本地免费 AI 模型
       const result = await removeBackground({
         imageData,
         runInference,
@@ -256,6 +279,11 @@ export default function RemoveBgPage() {
               {wasScaled && (
                 <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
                   图片过大已自动缩放至 2048px 处理，以保证性能
+                </p>
+              )}
+              {getCustomApiConfig('removeBg') && (
+                <p className="rounded-lg bg-accent-50 px-3 py-2 text-xs text-accent-700 dark:bg-accent-900/30 dark:text-accent-300">
+                  🔧 已启用自定义 API（在顶部「设置」中配置），将调用你的 API 而非本地模型
                 </p>
               )}
               <div className="flex gap-2">

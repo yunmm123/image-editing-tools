@@ -9,6 +9,8 @@ import { superResolve } from '../services/superResolution';
 import type { EnhanceLevel } from '../services/superResolution';
 import { aiSuperResolve } from '../services/aiSuperResolution';
 import { cloudSuperResolve } from '../services/cloudSuperResolution';
+import { customUpscale } from '../services/customApi';
+import { getCustomApiConfig } from '../services/settings';
 import { formatBytes } from '../utils/format';
 import { buildOutputFilename } from '../utils/image';
 
@@ -89,17 +91,33 @@ export default function UpscalePage() {
         setStage(info.stage);
         setProgress(info.progress);
       };
-      const result = engine === 'cloud'
-        ? await cloudSuperResolve({
-            imageData,
-            scale,
-            faceEnhance: cloudMode === 'upscale' ? faceEnhance : false,
-            restore: cloudMode === 'restore',
-            onProgress,
-          })
-        : engine === 'ai'
-        ? await aiSuperResolve({ imageData, scale, onProgress })
-        : await superResolve({ imageData, scale, enhance, onProgress });
+
+      // 优先检查自定义 API
+      const customConfig = getCustomApiConfig('upscale');
+      let result;
+      if (customConfig) {
+        result = await customUpscale({
+          imageData,
+          scale,
+          mode: cloudMode,
+          faceEnhance,
+          config: customConfig,
+          onProgress,
+        });
+      } else if (engine === 'cloud') {
+        result = await cloudSuperResolve({
+          imageData,
+          scale,
+          faceEnhance: cloudMode === 'upscale' ? faceEnhance : false,
+          restore: cloudMode === 'restore',
+          onProgress,
+        });
+      } else if (engine === 'ai') {
+        result = await aiSuperResolve({ imageData, scale, onProgress });
+      } else {
+        result = await superResolve({ imageData, scale, enhance, onProgress });
+      }
+
       setResultUrl(result.url);
       setResultBlob(result.blob);
       setResultSize({ width: result.width, height: result.height });
@@ -170,6 +188,11 @@ export default function UpscalePage() {
 
               {/* 引擎选择 */}
               <div>
+                {getCustomApiConfig('upscale') && (
+                  <p className="mb-2 rounded-lg bg-accent-50 px-3 py-2 text-xs text-accent-700 dark:bg-accent-900/30 dark:text-accent-300">
+                    🔧 已启用自定义 API（在顶部「设置」中配置），下方引擎选择将被忽略
+                  </p>
+                )}
                 <p className="mb-2 text-sm font-medium text-slate-700 dark:text-slate-200">放大引擎</p>
                 <div className="grid grid-cols-3 gap-2">
                   {ENGINE_OPTIONS.map((opt) => {

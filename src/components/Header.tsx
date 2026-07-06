@@ -1,5 +1,7 @@
+import { useState } from 'react';
 import { Link, NavLink } from 'react-router-dom';
-import { Coffee, Github, Moon, Sun, Sparkles } from 'lucide-react';
+import { Coffee, Github, Moon, Sun, Sparkles, Settings } from 'lucide-react';
+import SettingsModal from './SettingsModal';
 
 interface HeaderProps {
   theme: 'light' | 'dark';
@@ -19,6 +21,7 @@ const NAV_ITEMS = [
  * 顶部导航栏：Logo + 主导航 + 主题切换 + 赞助按钮
  */
 export default function Header({ theme, onToggleTheme }: HeaderProps) {
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const scrollToSponsor = () => {
     const el = document.getElementById('sponsor');
     el?.scrollIntoView({ behavior: 'smooth' });
@@ -56,6 +59,15 @@ export default function Header({ theme, onToggleTheme }: HeaderProps) {
 
         {/* 右侧操作 */}
         <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setSettingsOpen(true)}
+            className="btn-ghost h-9 w-9 p-0"
+            title="AI 功能设置"
+            aria-label="设置"
+          >
+            <Settings size={18} />
+          </button>
           <button
             type="button"
             onClick={onToggleTheme}
@@ -100,6 +112,8 @@ export default function Header({ theme, onToggleTheme }: HeaderProps) {
           </NavLink>
         ))}
       </nav>
+
+      <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
     </header>
   );
 }
