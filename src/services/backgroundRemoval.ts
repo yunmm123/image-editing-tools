@@ -54,6 +54,31 @@ export async function removeBackground({
 }
 
 /**
+ * 应用新的 alpha 蒙版到 ImageData，返回新的 ImageData
+ * RGB 保持不变，仅替换 alpha 通道
+ *
+ * 用于"手动修正主体范围"：用户在 MaskEditor 中涂抹后，
+ * 将新的 alpha 数组应用回原图 RGB，得到修正后的透明背景图。
+ */
+export function applyAlphaToImageData(
+  source: ImageData,
+  alphaMask: Uint8ClampedArray
+): ImageData {
+  if (alphaMask.length !== source.width * source.height) {
+    throw new Error('蒙版尺寸与图片不匹配');
+  }
+  const result = new ImageData(
+    new Uint8ClampedArray(source.data),
+    source.width,
+    source.height
+  );
+  for (let i = 0; i < alphaMask.length; i++) {
+    result.data[4 * i + 3] = alphaMask[i];
+  }
+  return result;
+}
+
+/**
  * 给透明背景图片合成纯色背景
  * @returns 合成后的 PNG Blob 与预览 URL
  */
