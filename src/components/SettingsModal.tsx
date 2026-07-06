@@ -5,6 +5,7 @@
 //   - 自定义 API：填入 URL + Key + 响应类型
 
 import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { X, Settings, Save, Info, Cloud, Scissors } from 'lucide-react';
 import { getSettings, saveSettings, type AppSettings, type AiProvider, type ResponseType } from '../services/settings';
 
@@ -147,8 +148,9 @@ export default function SettingsModal({ open, onClose }: SettingsModalProps) {
 
   if (!open) return null;
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm animate-fade-in" onClick={onClose}>
+  // 用 portal 渲染到 document.body，避免被父级 stacking context（如 sticky header）遮挡
+  return createPortal(
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm animate-fade-in" onClick={onClose}>
       <div
         className="relative max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl bg-white shadow-2xl dark:bg-slate-900"
         onClick={(e) => e.stopPropagation()}
@@ -227,6 +229,7 @@ export default function SettingsModal({ open, onClose }: SettingsModalProps) {
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

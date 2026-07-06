@@ -258,9 +258,10 @@ export async function cloudSuperResolve({
   const clientId = getClientId();
   const imageBlob = await imageDataToPngBlob(imageData);
 
-  // 模糊修复模式：使用 diffuser 模型，scale 固定为 1（不放大，只修复）
+  // 模糊修复模式：使用 diffuser-lite 模型（免费，扩散模型重绘细节）
+  // 注意：diffuser 是 premium 模型需要账户余额，diffuser-lite 免费但限制 4MP
   // 普通模式：使用 plus 模型，可选人脸增强
-  const model = restore ? 'diffuser' : DEFAULT_MODEL;
+  const model = restore ? 'diffuser-lite' : DEFAULT_MODEL;
   const actualScale = restore ? 1 : scale;
   const uploadOptions = restore
     ? { prompt: RESTORE_PROMPT, creativity: RESTORE_CREATIVITY }

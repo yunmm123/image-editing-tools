@@ -261,7 +261,7 @@ export default function UpscalePage() {
                   </div>
                   {cloudMode === 'restore' && (
                     <p className="mt-2 text-xs text-amber-600 dark:text-amber-400">
-                      ⚠️ 使用扩散模型重绘细节（不放大，约 30-90s），会消耗较多免费额度，适合模糊/老照片
+                      ⚠️ 使用 diffuser-lite 扩散模型重绘细节（不放大，约 30-90s），免费但限制 4MP，适合模糊/老照片
                     </p>
                   )}
                 </div>
