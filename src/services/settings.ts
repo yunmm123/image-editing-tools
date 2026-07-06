@@ -46,6 +46,8 @@ export interface AppSettings {
 }
 
 const STORAGE_KEY = 'pic-better-settings';
+// 版本号存储 key：用于检测版本切换，切换后清空自定义 API 配置
+const VERSION_KEY = 'pic-better-version';
 
 const DEFAULT_SETTINGS: AppSettings = {
   upscale: {
@@ -58,9 +60,30 @@ const DEFAULT_SETTINGS: AppSettings = {
   },
 };
 
+/**
+ * 版本校验：当前构建版本与 localStorage 中记录的版本不一致时，
+ * 清空自定义 API 配置（url/apiKey 等），强制用户重新输入。
+ * 这样每次部署新版本后，旧的 API 数据不会残留；
+ * 同一版本下用户配置并使用过的 API 则会保留。
+ */
+function checkVersionAndReset(): void {
+  try {
+    const storedVersion = localStorage.getItem(VERSION_KEY);
+    const currentVersion = __APP_VERSION__;
+    if (storedVersion !== currentVersion) {
+      // 版本切换：清除自定义 API 配置数据
+      localStorage.removeItem(STORAGE_KEY);
+      localStorage.setItem(VERSION_KEY, currentVersion);
+    }
+  } catch {
+    // localStorage 不可用时静默失败
+  }
+}
+
 /** 读取设置 */
 export function getSettings(): AppSettings {
   try {
+    checkVersionAndReset();
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return DEFAULT_SETTINGS;
     const parsed = JSON.parse(raw);
