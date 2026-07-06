@@ -315,17 +315,19 @@ export default function MaskEditor({
   };
 
   // 直接 DOM 操作更新画笔光标位置，避免触发 React 重渲染
+  // 注意：cursorRef 是 inner div 的子元素，inner div 已被 pan 偏移过，
+  // 所以 cursorRef 的 transform 只应包含 canvas 内部坐标 × eff，不再叠加 pan。
   const updateCursorEl = (canvasX: number, canvasY: number) => {
     const el = cursorRef.current;
     if (!el) return;
     const eff = displayScaleRef.current * userZoomRef.current;
-    const pan = panOffsetRef.current;
     const cs = brushSizeRef.current * eff;
-    const screenX = pan.x + canvasX * eff;
-    const screenY = pan.y + canvasY * eff;
+    // 相对于 inner div 左上角的像素坐标（inner div 本身已被父级 pan 偏移）
+    const localX = canvasX * eff;
+    const localY = canvasY * eff;
     el.style.width = `${cs}px`;
     el.style.height = `${cs}px`;
-    el.style.transform = `translate(${screenX - cs / 2}px, ${screenY - cs / 2}px)`;
+    el.style.transform = `translate(${localX - cs / 2}px, ${localY - cs / 2}px)`;
     el.style.opacity = '1';
   };
 
