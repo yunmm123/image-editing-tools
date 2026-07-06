@@ -188,8 +188,8 @@ export default function SettingsModal({ open, onClose }: SettingsModalProps) {
 
           <FeatureSection
             icon={Scissors}
-            title="AI 抠图"
-            freeDesc="使用浏览器本地 MODNet 模型，完全离线，无需配置"
+            title="AI 抠图 / 证件照换底"
+            freeDesc="使用浏览器本地 MODNet 模型，完全离线，无需配置。同时作用于「AI 抠图」和「证件照换底」两个功能"
             provider={settings.removeBg.provider}
             onProviderChange={(p) => setSettings((s) => ({ ...s, removeBg: { ...s.removeBg, provider: p } }))}
             config={settings.removeBg.customApi}

@@ -6,6 +6,8 @@ import ColorPicker from '../components/ColorPicker';
 import { useModelLoader } from '../hooks/useModelLoader';
 import { useImageProcessor } from '../hooks/useImageProcessor';
 import { removeBackground } from '../services/backgroundRemoval';
+import { customRemoveBg } from '../services/customApi';
+import { getCustomApiConfig } from '../services/settings';
 import { createCanvas, canvasToBlob } from '../utils/canvas';
 import { downloadBlob, buildOutputFilename } from '../utils/image';
 import { formatBytes } from '../utils/format';
@@ -64,10 +66,28 @@ export default function IdPhotoPage() {
     if (!file) return;
     try {
       const { imageData } = await loadAndPrepare(file);
-      const result = await removeBackground({ imageData, runInference });
-      setTransparentData(result.transparent);
+
+      // 优先检查自定义 API
+      const customConfig = getCustomApiConfig('removeBg');
+      let transparent: ImageData;
+      if (customConfig) {
+        const result = await customRemoveBg({ imageData, config: customConfig });
+        // 从返回 blob 提取 ImageData（带透明通道）
+        const bitmap = await createImageBitmap(result.blob);
+        const { ctx } = createCanvas(bitmap.width, bitmap.height);
+        ctx.drawImage(bitmap, 0, 0);
+        const w = bitmap.width;
+        const h = bitmap.height;
+        bitmap.close();
+        transparent = ctx.getImageData(0, 0, w, h);
+      } else {
+        const result = await removeBackground({ imageData, runInference });
+        transparent = result.transparent;
+      }
+
+      setTransparentData(transparent);
       // 立即合成初始预览
-      composeFinal(result.transparent, size, bgColor);
+      composeFinal(transparent, size, bgColor);
     } catch (err) {
       console.error(err);
     }
@@ -187,6 +207,11 @@ export default function IdPhotoPage() {
               {wasScaled && (
                 <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
                   图片过大已自动缩放至 2048px 处理
+                </p>
+              )}
+              {getCustomApiConfig('removeBg') && (
+                <p className="rounded-lg bg-accent-50 px-3 py-2 text-xs text-accent-700 dark:bg-accent-900/30 dark:text-accent-300">
+                  🔧 已启用自定义 API（在顶部「设置」中配置），将调用你的 API 而非本地模型
                 </p>
               )}
 
