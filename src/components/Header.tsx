@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link, NavLink } from 'react-router-dom';
-import { Coffee, Github, Moon, Sun, Sparkles, Settings } from 'lucide-react';
+import { Github, Moon, Sun, Sparkles, Settings } from 'lucide-react';
 import SettingsModal from './SettingsModal';
 
 interface HeaderProps {
@@ -18,14 +18,10 @@ const NAV_ITEMS = [
 ];
 
 /**
- * 顶部导航栏：Logo + 主导航 + 主题切换 + 赞助按钮
+ * 顶部导航栏：Logo + 主导航 + 主题切换
  */
 export default function Header({ theme, onToggleTheme }: HeaderProps) {
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const scrollToSponsor = () => {
-    const el = document.getElementById('sponsor');
-    el?.scrollIntoView({ behavior: 'smooth' });
-  };
 
   return (
     <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/80 backdrop-blur dark:border-slate-800 dark:bg-slate-950/80">
@@ -87,10 +83,6 @@ export default function Header({ theme, onToggleTheme }: HeaderProps) {
           >
             <Github size={18} />
           </a>
-          <button type="button" onClick={scrollToSponsor} className="btn-primary hidden sm:inline-flex">
-            <Coffee size={16} />
-            请作者喝咖啡
-          </button>
         </div>
       </div>
 

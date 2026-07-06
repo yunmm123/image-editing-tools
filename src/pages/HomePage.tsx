@@ -11,7 +11,6 @@ import {
   Cpu,
 } from 'lucide-react';
 import ToolCard from '../components/ToolCard';
-import SponsorBanner from '../components/SponsorBanner';
 
 const TOOLS = [
   {
@@ -112,7 +111,7 @@ export default function HomePage() {
                 立即体验
               </Link>
               <a
-                href="https://github.com/your-username/pic-better"
+                href="https://github.com/yunmm123/image-editing-tools"
                 target="_blank"
                 rel="noreferrer"
                 className="btn-secondary text-base"
@@ -153,8 +152,6 @@ export default function HomePage() {
           </div>
         </div>
       </section>
-
-      <SponsorBanner />
     </div>
   );
 }
