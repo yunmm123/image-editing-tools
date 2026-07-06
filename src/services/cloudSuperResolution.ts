@@ -23,6 +23,17 @@ interface CloudSuperResolveOptions {
   imageData: ImageData;
   /** 放大倍率：image-upscaling.net 支持任意整数倍 */
   scale: 2 | 4;
+  /**
+   * 人脸增强：启用 GFPGAN 人脸修复（仅 plus/general 模型支持）。
+   * 对老照片、模糊人像效果显著，几乎不增加耗时。
+   */
+  faceEnhance?: boolean;
+  /**
+   * 模糊修复模式：改用 diffuser 扩散模型 + scale=1（不放大），
+   * 通过 AI 重新生成清晰细节，专门修复模糊/老照片。
+   * 启用后 scale 参数被忽略，model 固定为 diffuser。
+   */
+  restore?: boolean;
   /** 进度回调 */
   onProgress?: (info: { progress: number; stage: string }) => void;
 }
@@ -74,12 +85,31 @@ async function uploadImage(
   clientId: string,
   imageBlob: Blob,
   scale: number,
-  model: string
+  model: string,
+  options?: {
+    /** 人脸增强（fx）：仅 plus/general 模型支持 */
+    faceEnhance?: boolean;
+    /** diffuser 模型的文本提示词 */
+    prompt?: string;
+    /** diffuser 模型的创造力（0-1，越低越接近原图） */
+    creativity?: number;
+  }
 ): Promise<string> {
   const formData = new FormData();
   formData.append('image', imageBlob, 'upload.png');
   formData.append('scale', String(scale));
   formData.append('model', model);
+  // 人脸增强：fx 为空字符串即表示开启（参考官方 Python SDK）
+  if (options?.faceEnhance) {
+    formData.append('fx', '');
+  }
+  // diffuser 模型参数
+  if (options?.prompt !== undefined) {
+    formData.append('prompt', options.prompt);
+  }
+  if (options?.creativity !== undefined) {
+    formData.append('creativity', String(options.creativity));
+  }
 
   const uploadUrl = proxied(
     `${API_BASE}/upscaling_upload?client_id=${encodeURIComponent(clientId)}`
@@ -115,13 +145,14 @@ interface StatusJob {
 async function pollStatus(
   clientId: string,
   uploadId: string,
-  onProgress?: (info: { progress: number; stage: string }) => void
+  onProgress?: (info: { progress: number; stage: string }) => void,
+  maxAttempts = 120 // 默认最多 4 分钟（每 2s 一次）
 ): Promise<StatusJob> {
   const statusUrl = proxied(
     `${API_BASE}/upscaling_get_status_v2?client_id=${encodeURIComponent(clientId)}`
   );
 
-  const MAX_ATTEMPTS = 120; // 最多 4 分钟
+  const MAX_ATTEMPTS = maxAttempts;
   for (let i = 0; i < MAX_ATTEMPTS; i++) {
     await new Promise((r) => setTimeout(r, 2000));
     onProgress?.({
@@ -160,7 +191,7 @@ async function pollStatus(
       throw new Error('任务未在服务器队列中找到，请重试');
     }
   }
-  throw new Error('AI 推理超时（4 分钟），请重试或换张更小的图片');
+  throw new Error(`AI 推理超时（${Math.round((MAX_ATTEMPTS * 2) / 60)} 分钟），请重试或换张更小的图片`);
 }
 
 /** 下载结果图片 */
@@ -201,25 +232,54 @@ async function deleteAfterDownload(imageUrl: string, clientId: string): Promise<
   }
 }
 
+/** 模糊修复模式的提示词：引导 AI 生成清晰、高细节结果 */
+const RESTORE_PROMPT = 'highly detailed, sharp focus, crystal clear, high quality, professional photograph';
+/** 模糊修复模式的创造力：保持低值以保留原图结构，仅增强细节 */
+const RESTORE_CREATIVITY = 0.1;
+
 /**
- * 云端 AI 超分辨率放大（image-upscaling.net Real-ESRGAN，完全免费）
+ * 云端 AI 超分辨率放大 / 模糊修复（image-upscaling.net，完全免费）
+ *
+ * 三种用法：
+ *   1. 普通放大：scale=2/4, model=plus（默认）
+ *   2. 放大 + 人脸增强：faceEnhance=true（GFPGAN 修复人脸，适合老照片人像）
+ *   3. 模糊修复：restore=true（diffuser 扩散模型，scale=1，AI 重绘细节，不放大）
  *
  * @throws 网络错误、配额用尽或推理失败时抛出
  */
 export async function cloudSuperResolve({
   imageData,
   scale,
+  faceEnhance,
+  restore,
   onProgress,
 }: CloudSuperResolveOptions): Promise<CloudSuperResolveResult> {
-  onProgress?.({ progress: 5, stage: '准备图片' });
+  onProgress?.({ progress: 5, stage: restore ? '准备模糊修复' : '准备图片' });
   const clientId = getClientId();
   const imageBlob = await imageDataToPngBlob(imageData);
 
-  onProgress?.({ progress: 15, stage: '上传到云端 AI' });
-  const uploadId = await uploadImage(clientId, imageBlob, scale, DEFAULT_MODEL);
+  // 模糊修复模式：使用 diffuser 模型，scale 固定为 1（不放大，只修复）
+  // 普通模式：使用 plus 模型，可选人脸增强
+  const model = restore ? 'diffuser' : DEFAULT_MODEL;
+  const actualScale = restore ? 1 : scale;
+  const uploadOptions = restore
+    ? { prompt: RESTORE_PROMPT, creativity: RESTORE_CREATIVITY }
+    : { faceEnhance };
 
-  onProgress?.({ progress: 20, stage: 'AI 推理中' });
-  const job = await pollStatus(clientId, uploadId, onProgress);
+  onProgress?.({
+    progress: 15,
+    stage: restore ? '上传到云端 AI（扩散模型）' : '上传到云端 AI',
+  });
+  const uploadId = await uploadImage(clientId, imageBlob, actualScale, model, uploadOptions);
+
+  onProgress?.({
+    progress: 20,
+    stage: restore ? 'AI 扩散修复中（较慢，约 30-90s）' : 'AI 推理中',
+  });
+  // 模糊修复较慢，放宽超时到 8 分钟
+  const job = restore
+    ? await pollStatus(clientId, uploadId, onProgress, 240)
+    : await pollStatus(clientId, uploadId, onProgress);
 
   onProgress?.({ progress: 92, stage: '下载结果' });
   const { blob, width, height } = await downloadResult(job.image_url, clientId);
