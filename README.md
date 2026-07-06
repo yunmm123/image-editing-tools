@@ -139,10 +139,9 @@ npm run preview
 
 <div align="center">
 
-| 支付宝 | 微信 |
-| :---: | :---: |
-| ![支付宝赞赏码占位](https://via.placeholder.com/200x200/FFFFFF/1677FF?text=%E6%94%AF%E4%BB%98%E5%AE%9D%E8%B5%9E%E8%B5%8F%E7%A0%81) | ![微信赞赏码占位](https://via.placeholder.com/200x200/FFFFFF/07C160?text=%E5%BE%AE%E4%BF%A1%E8%B5%9E%E8%B5%8F%E7%A0%81) |
-| _替换为你的赞赏码_ | _替换为你的赞赏码_ |
+![微信赞赏码](./public/wechat-reward.jpg)
+
+*微信扫码赞赏*
 
 </div>
 
@@ -242,10 +241,9 @@ If PicBetter helps you, consider buying the author a coffee ☕
 
 <div align="center">
 
-| Alipay | WeChat |
-| :---: | :---: |
-| ![Alipay placeholder](https://via.placeholder.com/200x200/FFFFFF/1677FF?text=Alipay) | ![WeChat placeholder](https://via.placeholder.com/200x200/FFFFFF/07C160?text=WeChat) |
-| _Replace with your QR code_ | _Replace with your QR code_ |
+![WeChat Reward](./public/wechat-reward.jpg)
+
+*Scan with WeChat to sponsor*
 
 </div>
 
