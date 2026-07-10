@@ -131,20 +131,6 @@ npm run preview
 - **设置数据**:自定义 API 配置存在浏览器 `localStorage`,不上传任何服务器
 - **版本切换**:每次部署新版本后,自定义 API 配置会自动清空,需重新输入(防止旧配置残留导致不可用)
 
-## 💖 赞助
-
-如果 PicBetter 帮到了你,欢迎请作者喝杯咖啡 ☕
-
-> 赞助完全自愿,不影响任何功能使用,所有功能对所有人完全平等。
-
-<div align="center">
-
-![微信赞赏码](./public/wechat-reward.jpg)
-
-*微信扫码赞赏*
-
-</div>
-
 ## ⭐ Star History
 
 <div align="center">
@@ -232,20 +218,6 @@ npm run build    # production build
 - **Cloud AI Upscale**: Only when using the "Cloud AI" engine, images are sent to image-upscaling.net for inference (switch to "Local AI" or "Custom API" to avoid any upload)
 - **Settings**: Custom API config is stored in browser `localStorage`, never uploaded
 - **Version Reset**: Custom API config is automatically cleared on each new deploy, requiring re-entry (prevents stale config)
-
-## 💖 Sponsor
-
-If PicBetter helps you, consider buying the author a coffee ☕
-
-> Sponsorship is purely voluntary and does not affect any functionality.
-
-<div align="center">
-
-![WeChat Reward](./public/wechat-reward.jpg)
-
-*Scan with WeChat to sponsor*
-
-</div>
 
 ## ⭐ Star History
 
