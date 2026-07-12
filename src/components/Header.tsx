@@ -11,10 +11,14 @@ interface HeaderProps {
 const NAV_ITEMS = [
   { to: '/remove-bg', label: 'AI 抠图' },
   { to: '/upscale', label: '图片放大' },
+  { to: '/crop', label: '图片裁剪' },
+  { to: '/rotate', label: '旋转翻转' },
+  { to: '/stitch', label: '图片拼接' },
   { to: '/watermark', label: '图片水印' },
   { to: '/compress', label: '图片压缩' },
   { to: '/convert', label: '格式转换' },
   { to: '/id-photo', label: '证件照换底' },
+  { to: '/id-photo-layout', label: '证件照排版' },
 ];
 
 /**

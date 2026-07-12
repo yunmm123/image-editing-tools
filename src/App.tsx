@@ -8,6 +8,10 @@ import WatermarkPage from './pages/WatermarkPage';
 import CompressPage from './pages/CompressPage';
 import ConvertPage from './pages/ConvertPage';
 import IdPhotoPage from './pages/IdPhotoPage';
+import CropPage from './pages/CropPage';
+import RotateFlipPage from './pages/RotateFlipPage';
+import StitchPage from './pages/StitchPage';
+import IdPhotoLayoutPage from './pages/IdPhotoLayoutPage';
 
 /** 主题类型 */
 type Theme = 'light' | 'dark';
@@ -46,6 +50,10 @@ export default function App() {
         <Route path="/compress" element={<CompressPage />} />
         <Route path="/convert" element={<ConvertPage />} />
         <Route path="/id-photo" element={<IdPhotoPage />} />
+        <Route path="/crop" element={<CropPage />} />
+        <Route path="/rotate" element={<RotateFlipPage />} />
+        <Route path="/stitch" element={<StitchPage />} />
+        <Route path="/id-photo-layout" element={<IdPhotoLayoutPage />} />
       </Routes>
     </Layout>
   );

@@ -9,6 +9,10 @@ import {
   Shield,
   Zap,
   Cpu,
+  Crop,
+  RotateCw,
+  Layers,
+  LayoutGrid,
 } from 'lucide-react';
 import ToolCard from '../components/ToolCard';
 
@@ -23,9 +27,31 @@ const TOOLS = [
   },
   {
     to: '/upscale',
-    title: '图片放大',
-    description: '渐进式双三次插值 + 锐化增强，2x / 4x 放大图片',
+    title: '图片放大 / 模糊修复',
+    description: '2x / 4x 高清放大 + AI 扩散模型修复模糊老照片',
     icon: ZoomIn,
+    badge: 'AI',
+    accent: 'accent' as const,
+  },
+  {
+    to: '/crop',
+    title: '图片裁剪',
+    description: '自由裁剪或按 1:1 / 4:3 / 16:9 等固定比例裁剪',
+    icon: Crop,
+    accent: 'accent' as const,
+  },
+  {
+    to: '/rotate',
+    title: '旋转翻转',
+    description: '90° 旋转、水平 / 垂直镜像翻转图片',
+    icon: RotateCw,
+    accent: 'accent' as const,
+  },
+  {
+    to: '/stitch',
+    title: '图片拼接',
+    description: '多张图片竖向 / 横向拼接成长图，可调间距对齐',
+    icon: Layers,
     accent: 'accent' as const,
   },
   {
@@ -54,6 +80,13 @@ const TOOLS = [
     title: '证件照换底',
     description: '一寸 / 二寸规格，白蓝红渐变背景一键替换',
     icon: IdCard,
+    accent: 'brand' as const,
+  },
+  {
+    to: '/id-photo-layout',
+    title: '证件照排版',
+    description: '将证件照排版到 6 寸 / 5 寸 / A4 相纸，方便打印冲洗',
+    icon: LayoutGrid,
     accent: 'brand' as const,
   },
 ];
@@ -104,7 +137,7 @@ export default function HomePage() {
             </h1>
             <p className="mx-auto mt-6 max-w-2xl text-base text-slate-600 dark:text-slate-300 sm:text-lg">
               免费、开源、隐私安全的 AI 图片在线处理工具。所有处理在浏览器本地完成，
-              图片不上传，保护隐私。支持 AI 抠图、无损放大、图片水印、压缩、格式转换、证件照换底。
+              图片不上传，保护隐私。支持 AI 抠图、放大修复、裁剪、旋转翻转、拼接、水印、压缩、格式转换、证件照。
             </p>
             <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
               <Link to="/remove-bg" className="btn-primary text-base">
@@ -126,7 +159,7 @@ export default function HomePage() {
       {/* 功能卡片 */}
       <section className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
         <div className="mb-8 text-center">
-          <h2 className="text-2xl font-bold text-slate-900 dark:text-white sm:text-3xl">六大功能</h2>
+          <h2 className="text-2xl font-bold text-slate-900 dark:text-white sm:text-3xl">十大功能</h2>
           <p className="mt-2 text-slate-500 dark:text-slate-400">所有功能完全免费，无需注册，无需登录</p>
         </div>
         <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
